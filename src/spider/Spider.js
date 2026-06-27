@@ -345,7 +345,7 @@ export class Spider {
         restAz: Math.atan2(home.x, home.z), restR: rHome, rMin: rHome * 0.78, rMax: rHome * 1.2, ccw: 0.3, cw: 0.3,
         scale: s.scale,
         plant: V3(), from: V3(), to: V3(), surfN: Y_UP.clone(), toN: Y_UP.clone(), t: 1, stepping: false,
-        wheelAngle: 0, clawAngle: 0,
+        wheelAngle: 0,
       };
 
       // Build leg geometry groups
@@ -368,29 +368,7 @@ export class Spider {
       tibGroup.children[1].scale.setScalar(armR * 1.1);
       this.scene.add(tibGroup);
 
-      // 3-toe claw group
-      const clawGroup = new THREE.Group();
-      const clawR = 0.06 * sc;
-      const clawLen = 0.4 * sc;
-      for (let ti = 0; ti < 3; ti++) {
-        const toeGroup = new THREE.Group();
-        // Toe segment 1
-        const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(clawR, clawR * 0.7, clawLen, 5), M.clawSteel);
-        seg1.position.y = -clawLen * 0.5;
-        toeGroup.add(seg1);
-        // Toe tip (curved claw)
-        const tip = new THREE.Mesh(new THREE.ConeGeometry(clawR * 0.6, clawLen * 0.4, 4), M.clawSteel);
-        tip.position.y = -clawLen;
-        tip.rotation.x = 0.3; // slight curl
-        toeGroup.add(tip);
-        // Angle around Y axis: 0°, 120°, 240°
-        toeGroup.rotation.y = (ti / 3) * Math.PI * 2;
-        toeGroup.rotation.x = 0.4; // default spread angle
-        clawGroup.add(toeGroup);
-      }
-      this.scene.add(clawGroup);
-
-      L.femGroup = femGroup; L.tibGroup = tibGroup; L.clawGroup = clawGroup;
+      L.femGroup = femGroup; L.tibGroup = tibGroup;
       L.armR = armR;
 
       L.restAxisL = home.clone().sub(L.hip).normalize();
@@ -444,7 +422,7 @@ export class Spider {
     if (this._abQ) { this._abQ.identity(); this.abdomen.quaternion.identity(); }
     this.up.copy(Y_UP); this.fwd.set(0, 0, 1); this.right.set(1, 0, 0); this.heading = 0; this.moveDir.set(0, 0, 1); this.curSpeed = 0; this.activity = 0; this.gaitPhase = 0;
     this.pos.set(0, terrainH(0, 0), 0); this.bodyOrigin.copy(this.pos).addScaledVector(this.up, this.rideClear); this.rebuild(); this.setRoot();
-    for (const L of this.legs) { const hw = this.root.localToWorld(L.home.clone()); const g = this.footProbe(hw); L.plant.copy(g.point); L.surfN.copy(g.n); L.toN.copy(g.n); L.from.copy(g.point); L.to.copy(g.point); L.t = 1; L.stepping = false; if (L.clawGroup) L.clawGroup.visible = true; }
+    for (const L of this.legs) { const hw = this.root.localToWorld(L.home.clone()); const g = this.footProbe(hw); L.plant.copy(g.point); L.surfN.copy(g.n); L.toN.copy(g.n); L.from.copy(g.point); L.to.copy(g.point); L.t = 1; L.stepping = false; }
   }
   teleport(x, z, headingVec) {
     this.up.copy(Y_UP);
@@ -523,7 +501,7 @@ export class Spider {
       const ankle = knee.clone().addScaledVector(out, this.tibia * 0.15).addScaledVector(this.up, -this.tibia * 0.35);
       const foot = ankle.clone().addScaledVector(this.up, -this.tarsus * 0.3);
       L.plant.copy(foot);
-      this._poseLegMeshes(L, hipW, knee, ankle, foot); if (L.clawGroup) L.clawGroup.visible = false;
+      this._poseLegMeshes(L, hipW, knee, ankle, foot);
     }
   }
   pounce(dir, power = 1) {
@@ -556,12 +534,12 @@ export class Spider {
     this.airborne = false; this.tether = null; this.vel.set(0, 0, 0);
     if (N) this.up.copy(N).normalize();
     this.pos.copy(P); this.bodyOrigin.copy(this.pos).addScaledVector(this.up, this.rideClear); this.rebuild(); this.setRoot();
-    for (const L of this.legs) { const hw = this.root.localToWorld(L.home.clone()); const g = this.footProbe(hw); L.plant.copy(g.point); L.surfN.copy(g.n); L.toN.copy(g.n); L.from.copy(g.point); L.to.copy(g.point); L.t = 1; L.stepping = false; if (L.clawGroup) L.clawGroup.visible = true; }
+    for (const L of this.legs) { const hw = this.root.localToWorld(L.home.clone()); const g = this.footProbe(hw); L.plant.copy(g.point); L.surfN.copy(g.n); L.toN.copy(g.n); L.from.copy(g.point); L.to.copy(g.point); L.t = 1; L.stepping = false; }
     // Landing dust
     this._dustLand.emit(P.clone(), V3(0, 1, 0), 3, 8);
   }
-  severLeg(i) { const L = this.legs[i]; if (!L || L.lost) return false; L.lost = true; this.legsLost++; L.femGroup.visible = L.tibGroup.visible = false; if (L.clawGroup) L.clawGroup.visible = false; return true; }
-  regrowLeg(i) { const L = this.legs[i]; if (!L || !L.lost) return false; L.lost = false; this.legsLost--; L.femGroup.visible = L.tibGroup.visible = true; if (L.clawGroup) L.clawGroup.visible = true; return true; }
+  severLeg(i) { const L = this.legs[i]; if (!L || L.lost) return false; L.lost = true; this.legsLost++; L.femGroup.visible = L.tibGroup.visible = false; return true; }
+  regrowLeg(i) { const L = this.legs[i]; if (!L || !L.lost) return false; L.lost = false; this.legsLost--; L.femGroup.visible = L.tibGroup.visible = true; return true; }
   updateAirborne(dt, inp) {
     if (dt <= 0) { this.bodyOrigin.copy(this.pos); this.rebuild(); this.setRoot(); return; }
     const G = 26; this.vel.y -= G * dt;
@@ -611,7 +589,7 @@ export class Spider {
       const ankle = knee.clone().addScaledVector(down, this.tibia * 0.7).addScaledVector(out, -this.tibia * 0.2);
       const foot = ankle.clone().addScaledVector(down, this.tarsus);
       L.plant.copy(foot);
-      this._poseLegMeshes(L, hipW, knee, ankle, foot); this._updateClaws(L, foot);
+      this._poseLegMeshes(L, hipW, knee, ankle, foot);
     }
   }
 
@@ -685,16 +663,7 @@ export class Spider {
     L.tibGroup.children[1].scale.setScalar(armR * 1.1);
   }
 
-  _updateClaws(L, foot) {
-    if (!L.clawGroup) return;
-    L.clawGroup.position.copy(foot);
-    const down = this.up.clone().negate();
-    const q = new THREE.Quaternion().setFromUnitVectors(V3(0, -1, 0), down);
-    L.clawGroup.quaternion.copy(q);
-    for (const toe of L.clawGroup.children) {
-      toe.rotation.x = L.clawAngle;
-    }
-  }
+
 
   updateLegs(dt) {
     const act = Math.max(this.activity || 0, 0.0001);
@@ -729,31 +698,26 @@ export class Spider {
       const spans = () => occluded(hipC, foot) || hipC.clone().sub(foot).dot(this.up) > this.rideClear + 1.3;
       for (let ti = 0; ti < 8 && spans(); ti++) { rr = Math.max(L.rMin * 0.7, rr * 0.66); const wc = this.root.localToWorld(V3(Math.sin(az) * rr, dl.y, Math.cos(az) * rr)); g = this.footProbe(wc); foot = g.point.clone(); }
       const tv = foot.clone().sub(hipC); const dd = tv.length(); const safe = maxReach * 0.86; if (dd > safe) foot = hipC.clone().addScaledVector(tv.multiplyScalar(1 / dd), safe);
-      L.stepping = true; L.t = 0; L.from.copy(L.plant); L.to.copy(foot); L.toN.copy(g.n); L.clawAngle = 0.5; swinging++;
+      L.stepping = true; L.t = 0; L.from.copy(L.plant); L.to.copy(foot); L.toN.copy(g.n); swinging++;
       let mp = 0; for (let s = 1; s < 6; s++) { _depP.copy(L.from).lerp(L.to, s / 6); for (const c of colliders) { const d = clearance(_depP, c).d; if (-d > mp) mp = -d; } }
       let lift = Math.min(this.stepH + mp * 1.1, this.stepH + 1.3);
       const head = castAll(_depP.copy(L.from).lerp(L.to, 0.5).addScaledVector(this.up, 0.2), this.up, lift + 0.6);
       if (head) lift = Math.min(lift, Math.max(0.2, head.t - 0.3));
       L.lift = lift;
-      // Claw opens when stepping starts
     }
     const upv = this.up;
-    // Idle claw grip
-    for (const L of this.legs) { if (!L.stepping && !L.lost) L.clawAngle = lerp(L.clawAngle || 0.1, 0.1, 1 - Math.pow(0.1, dt)); }
     for (let i = 0; i < 8; i++) {
       const L = this.legs[i]; if (L.lost) continue;
       if (L.stepping) {
         L.t += dt / swingDur; const t = clamp01(L.t); L.plant.lerpVectors(L.from, L.to, smooth(t)); L.plant.addScaledVector(upv, (L.lift || this.stepH) * Math.sin(Math.PI * Math.pow(t, 0.82)));
-        // Claw closes as foot approaches ground
         if (t >= 1) {
-          L.stepping = false; L.plant.copy(L.to); L.surfN.copy(L.toN); L.clawAngle = 0.1;
+          L.stepping = false; L.plant.copy(L.to); L.surfN.copy(L.toN);
           if (this.curSpeed > 1.2) this.world.puff(L.plant);
           // Joint steam on step
           const hipW = this.root.localToWorld(L.hip.clone());
           this._steamJoint.emit(hipW, upv, 1.5, 2);
         }
       } else {
-        // Idle: claws gently grip
       }
       const hipW = this.root.localToWorld(L.hip.clone());
       let sN = L.surfN.clone(); sN.multiplyScalar(0.7).addScaledVector(upv, 0.3).normalize(); if (sN.dot(upv) < 0.15) sN.copy(upv);
@@ -799,7 +763,7 @@ export class Spider {
         }
         const kd = knee.clone().sub(kneeIK); const kdl = kd.length(); if (kdl > 1.3) { knee.copy(kneeIK).addScaledVector(kd, 1.3 / kdl); depen(knee); }
       }
-      this._poseLegMeshes(L, hipW, knee, ankle, foot); this._updateClaws(L, foot);
+      this._poseLegMeshes(L, hipW, knee, ankle, foot);
     }
   }
 
