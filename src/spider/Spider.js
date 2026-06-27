@@ -442,13 +442,8 @@ export class Spider {
     const spd = this.flyVel.length();
     if (spd > 18 * speedMul) this.flyVel.multiplyScalar(18 * speedMul / spd);
     this.pos.addScaledVector(this.flyVel, dt); this.curSpeed = spd;
-    this.up.lerp(Y_UP, 1 - Math.pow(0.1, dt));
-    if (!isFinite(this.up.x) || this.up.lengthSq() < 1e-6) this.up.copy(Y_UP);
-    if (spd > 2) {
-      const tiltAxis = this.fwd.clone().cross(Y_UP);
-      if (tiltAxis.lengthSq() > 1e-6) { tiltAxis.normalize(); const tiltQ = new THREE.Quaternion().setFromAxisAngle(tiltAxis, clamp(spd * 0.015, 0, 0.3)); this.up.applyQuaternion(tiltQ).normalize(); }
-    }
-    if (!isFinite(this.up.x) || this.up.lengthSq() < 1e-6) this.up.copy(Y_UP);
+    // Stay perfectly level in flight — no forward tilt
+    this.up.copy(Y_UP);
     this.pos.x = clamp(this.pos.x, -FIELD / 2 + 5, FIELD / 2 - 5);
     this.pos.z = clamp(this.pos.z, -FIELD / 2 + 5, FIELD / 2 - 5);
     this.pos.y = clamp(this.pos.y, 5, 120);
