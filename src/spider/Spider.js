@@ -211,6 +211,28 @@ export class Spider {
       this._chimneys.push({ mesh: chimney, pos: V3(ch.x, ch.y + ch.h * 0.5 + 0.08, ch.z) });
     }
 
+    // ---- WINDOWS on building walls (warm glow) ----
+    for (const [x, y, z, w, h] of [
+      [0.7, 0.9, 1.12, 0.25, 0.2], [-0.5, 0.9, 1.12, 0.25, 0.2],
+      [1.32, 0.8, 0.4, 0.18, 0.22], [-1.32, 0.8, 0.4, 0.18, 0.22],
+      [0.5, 2.1, 0.92, 0.2, 0.18], [-0.2, 2.1, 0.92, 0.2, 0.18],
+    ]) { this._part(this.root, new THREE.BoxGeometry(w, h, 0.06), M.windowGlow, x, y, z); }
+
+    // ---- DOOR at the mouth (entrance) ----
+    this._part(this.root, new THREE.BoxGeometry(0.5, 0.6, 0.08), M.darkIron, 0, 0.55, 1.27);
+
+    // ---- WOODEN BEAMS on walls ----
+    for (const side of [-1, 1]) {
+      this._part(this.root, new THREE.BoxGeometry(0.06, 1.4, 0.06), M.oldWood, side * 1.35, 0.8, 0.8);
+      this._part(this.root, new THREE.BoxGeometry(0.06, 1.4, 0.06), M.oldWood, side * 1.35, 0.8, -0.8);
+    }
+
+    // ---- HANGING LANTERNS ----
+    for (const [lx, ly, lz] of [[-1.0, 1.3, 0.8], [1.0, 1.3, 0.8]]) {
+      this._part(this.root, new THREE.BoxGeometry(0.12, 0.16, 0.12), M.windowGlow, lx, ly, lz);
+      this._part(this.root, new THREE.CylinderGeometry(0.01, 0.01, 0.3, 4), M.darkIron, lx, ly + 0.18, lz);
+    }
+    // ---- TRAILING: boiler / abdomen ----
     // ---- TRAILING: boiler / abdomen ----
     // ---- TRAILING: boiler / abdomen ----
     const py = this.PEDICEL.y, pz = this.PEDICEL.z;

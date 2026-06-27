@@ -21,6 +21,10 @@ export class World {
     this._village();
     this._flowers();
     this._grassClumps();
+    this._windmill();
+    this._well();
+    this._fences();
+    this._bushes();
     this._dust();
   }
 
@@ -205,9 +209,68 @@ export class World {
     }
   }
 
+
+  _windmill() {
+    const S = WORLD_SCALE;
+    const x = -25 * S, z = 30 * S, y = terrainH(x, z);
+    const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.8 * S, 1.2 * S, 5 * S, 8), matStd(0xD4C098));
+    tower.position.set(x, y + 2.5 * S, z); tower.castShadow = true; this.envGroup.add(tower);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(1.0 * S, 1.5 * S, 6), matStd(0x6A3020));
+    roof.position.set(x, y + 5.75 * S, z); roof.castShadow = true; this.envGroup.add(roof);
+    this._windmillBlades = new THREE.Group();
+    for (let i = 0; i < 4; i++) {
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.15 * S, 3.5 * S, 0.05 * S), matStd(0x8a7a60));
+      blade.position.y = 1.75 * S; const arm = new THREE.Group(); arm.rotation.z = (i / 4) * Math.PI * 2; arm.add(blade); this._windmillBlades.add(arm);
+    }
+    this._windmillBlades.position.set(x, y + 4.5 * S, z); this.envGroup.add(this._windmillBlades);
+  }
+
+  _well() {
+    const S = WORLD_SCALE;
+    const x = 20 * S, z = -18 * S, y = terrainH(x, z);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8 * S, 0.2 * S, 8, 12), matStd(0x7a7065));
+    ring.position.set(x, y + 0.2 * S, z); ring.rotation.x = Math.PI / 2; ring.castShadow = true; this.envGroup.add(ring);
+    for (const dx of [-0.6, 0.6]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06 * S, 0.06 * S, 1.5 * S, 5), matStd(0x6a4a2a));
+      post.position.set(x + dx * S, y + 0.95 * S, z); post.castShadow = true; this.envGroup.add(post);
+    }
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(1.4 * S, 0.08 * S, 0.08 * S), matStd(0x6a4a2a));
+    beam.position.set(x, y + 1.7 * S, z); beam.castShadow = true; this.envGroup.add(beam);
+  }
+
+  _fences() {
+    const S = WORLD_SCALE;
+    const postMat = matStd(0x6a4a2a), railMat = matStd(0x7a5a38);
+    const posts = [[14, 14], [16, 16], [18, 18], [20, 20], [22, 18], [24, 16]];
+    for (let i = 0; i < posts.length; i++) {
+      const [fx, fz] = posts[i], fy = terrainH(fx * S, fz * S);
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * S, 0.06 * S, 1.0 * S, 5), postMat);
+      post.position.set(fx * S, fy + 0.5 * S, fz * S); post.castShadow = true; this.envGroup.add(post);
+      if (i < posts.length - 1) {
+        const [nx, nz] = posts[i + 1], nfy = terrainH(nx * S, nz * S);
+        const len = Math.hypot(nx - fx, nz - fz) * S;
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 0.06 * S, 0.04 * S), railMat);
+        rail.position.set((fx + nx) / 2 * S, (fy + nfy) / 2 * S + 0.7 * S, (fz + nz) / 2 * S);
+        rail.lookAt(nx * S, nfy * S + 0.7 * S, nz * S); rail.castShadow = true; this.envGroup.add(rail);
+      }
+    }
+  }
+
+  _bushes() {
+    const bushMats = [matStd(0x3a6a28), matStd(0x2a5a18)];
+    for (let i = 0; i < 30; i++) {
+      const x = (Math.random() - 0.5) * FIELD * 0.6, z = (Math.random() - 0.5) * FIELD * 0.6;
+      if (Math.abs(x) < 14 && Math.abs(z) < 14) continue;
+      const y = terrainH(x, z), r = 0.4 + Math.random() * 0.6;
+      const bush = new THREE.Mesh(new THREE.SphereGeometry(r, 6, 5), bushMats[Math.floor(Math.random() * 2)]);
+      bush.position.set(x, y + r * 0.4, z); bush.scale.y = 0.6; bush.castShadow = true; this.envGroup.add(bush);
+    }
+  }
+
   updateClouds(dt) {
     if (!this.clouds) return;
     for (const c of this.clouds) { c.position.x += c.userData.speed * dt; if (c.position.x > 120) c.position.x = -120; }
+    if (this._windmillBlades) this._windmillBlades.rotation.z += dt * 0.3;
   }
 
   _dust() {
