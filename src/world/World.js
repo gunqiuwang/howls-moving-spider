@@ -26,29 +26,28 @@ export class World {
 
   _lights() {
     const s = this.scene;
-    const G = GHIBLI;
-    s.add(new THREE.HemisphereLight(0xADD8F0, 0xA08060, 1.3));
+    s.add(new THREE.HemisphereLight(0x87CEEB, 0xA08060, 1.4));
     s.add(new THREE.AmbientLight(0x4a4040, 0.2));
-    const sun = new THREE.DirectionalLight(G.sunLight, 1.5);
+    const sun = new THREE.DirectionalLight(0xFFF4E0, 1.6);
     sun.position.set(40, 50, 30); sun.castShadow = true;
     sun.shadow.mapSize.set(TOUCH ? 1024 : 2048, TOUCH ? 1024 : 2048);
     sun.shadow.camera.near = 10; sun.shadow.camera.far = 240;
-    sun.shadow.camera.left = -70; sun.shadow.camera.right = 70; sun.shadow.camera.top = 70; sun.shadow.camera.bottom = -70;
+    sun.shadow.camera.left = -70; sun.shadow.camera.right = 70;
+    sun.shadow.camera.top = 70; sun.shadow.camera.bottom = -70;
     sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.04;
     s.add(sun); s.add(sun.target); this.sun = sun;
-    const f1 = new THREE.DirectionalLight(0xFFE8CC, 0.25); f1.position.set(-38, 22, -42); s.add(f1);
+    s.add(new THREE.DirectionalLight(0xFFE8CC, 0.25).position.set(-38, 22, -42));
   }
 
   _sky() {
-    const G = GHIBLI;
     const c = document.createElement('canvas'); c.width = 16; c.height = 256;
     const x = c.getContext('2d');
     const g = x.createLinearGradient(0, 0, 0, 256);
-    g.addColorStop(0, '#3A70A8');
-    g.addColorStop(0.3, '#4A88C8');
-    g.addColorStop(0.6, '#6AAAD8');
-    g.addColorStop(0.85, '#8EC8E8');
-    g.addColorStop(1, '#B0D8F0');
+    g.addColorStop(0, '#2860A0');
+    g.addColorStop(0.3, '#3878C0');
+    g.addColorStop(0.6, '#5098D8');
+    g.addColorStop(0.85, '#78B8E8');
+    g.addColorStop(1, '#A0D0F0');
     x.fillStyle = g; x.fillRect(0, 0, 16, 256);
     this.scene.background = new THREE.CanvasTexture(c);
     this.scene.fog = null;
@@ -61,13 +60,14 @@ export class World {
     for (let i = 0; i < p.count; i++) { const y = terrainH(p.getX(i), p.getZ(i)); p.setY(i, y); if (y < mn) mn = y; if (y > mx) mx = y; }
     g.computeVertexNormals();
     const col = [], n = g.attributes.normal, tmp = new THREE.Color();
-    const G = GHIBLI;
-    const cDeep = new THREE.Color(G.grassDark), cGrass = new THREE.Color(G.grassMid),
-          cLight = new THREE.Color(G.grassLight), cEarth = new THREE.Color(G.earth),
-          cRock  = new THREE.Color(0x5a5048), cPeak  = new THREE.Color(G.hillTop);
+    const cDeep = new THREE.Color(0x3A6A28), cGrass = new THREE.Color(0x4A8C3A),
+          cLight = new THREE.Color(0x6DB356), cEarth = new THREE.Color(0x7A6848),
+          cRock = new THREE.Color(0x5a5048), cPeak = new THREE.Color(0xC8B870);
     for (let i = 0; i < p.count; i++) {
       const y = p.getY(i), t = clamp01((y - mn) / (mx - mn + 1e-3)), sl = 1 - clamp01(n.getY(i));
-      tmp.copy(cDeep).lerp(cGrass, clamp01(t * 2.0)).lerp(cLight, clamp01((t - 0.3) * 2.5)).lerp(cPeak, clamp01((t - 0.7) * 3)).lerp(cRock, clamp01((sl - 0.3) * 2.5)).lerp(cEarth, clamp01((0.15 - t) * 2) * 0.5);
+      tmp.copy(cDeep).lerp(cGrass, clamp01(t * 2)).lerp(cLight, clamp01((t - 0.3) * 2.5))
+        .lerp(cPeak, clamp01((t - 0.7) * 3)).lerp(cRock, clamp01((sl - 0.3) * 2.5))
+        .lerp(cEarth, clamp01((0.15 - t) * 2) * 0.5);
       col.push(tmp.r, tmp.g, tmp.b);
     }
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
@@ -89,7 +89,7 @@ export class World {
   }
   _box(cx, cy, cz, hx, hy, hz, q, color, emis) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(hx * 2, hy * 2, hz * 2),
-      toonMat(color || GHIBLI.castleStone, { emissive: emis || 0x000000, emissiveIntensity: emis ? 0.3 : 0 }));
+      toonMat(color || 0x8A7E70, { emissive: emis || 0x000000, emissiveIntensity: emis ? 0.3 : 0 }));
     m.position.set(cx, cy, cz); if (q) m.quaternion.copy(q); m.castShadow = m.receiveShadow = true;
     this.envGroup.add(m); this._edgeLines(m, 0xc8a060, 0.2); addBox(V3(cx, cy, cz), V3(hx, hy, hz), q);
   }
@@ -97,7 +97,7 @@ export class World {
 
   _environment() {
     const S = WORLD_SCALE;
-    this._matRock = toonMat(GHIBLI.castleStone);
+    this._matRock = toonMat(0x8A7E70);
     const zx = 15 * S, zz = -13 * S; let yy = terrainH(zx, zz) - 0.4 * S;
     for (const t of [[10, 1.0, 10], [7.4, 1.0, 7.4], [5, 1.05, 5], [3, 1.1, 3]]) { const h = t[1] * S; this._box(zx, yy + h, zz, t[0] * 0.5 * S, h, t[2] * 0.5 * S, null, 0x6a5840); yy += h * 2; }
     const px = -17 * S, pz = 0;
@@ -129,7 +129,7 @@ export class World {
     const tex = new THREE.CanvasTexture(c);
     this.clouds = [];
     for (let i = 0; i < 25; i++) {
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.75 + Math.random() * 0.2, depthWrite: false }));
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.8 + Math.random() * 0.15, depthWrite: false }));
       sp.position.set((Math.random() - 0.5) * 200, 18 + Math.random() * 20, (Math.random() - 0.5) * 200);
       const s = 30 + Math.random() * 40; sp.scale.set(s * 3, s * 1.5, 1);
       sp.userData.speed = 0.3 + Math.random() * 0.5;
@@ -138,8 +138,8 @@ export class World {
   }
 
   _trees() {
-    const trunkMat = toonMat(GHIBLI.trunk);
-    const leafMats = [toonMat(GHIBLI.leafLight), toonMat(GHIBLI.leafMid), toonMat(GHIBLI.leafDark)];
+    const trunkMat = toonMat(0x5A3A20);
+    const leafMats = [toonMat(0x5A9A40), toonMat(0x3A7A28), toonMat(0x2A5A18)];
     const treeData = []; let tries = 0;
     while (treeData.length < 40 && tries < 300) {
       tries++; const x = (Math.random() - 0.5) * FIELD * 0.8; const z = (Math.random() - 0.5) * FIELD * 0.8;
@@ -161,16 +161,14 @@ export class World {
   }
 
   _village() {
-    const houseMats = [toonMat(GHIBLI.houseWall), toonMat(0xC8A878), toonMat(0xD4C098)];
-    const roofMat = toonMat(GHIBLI.houseRoof);
+    const houseMats = [toonMat(0xD4B888), toonMat(0xC8A878), toonMat(0xD4C098)];
+    const roofMat = toonMat(0x6A3020);
     const S = WORLD_SCALE;
     const houses = [
       { x: 16, z: 10, w: 2.5, d: 2.5, h: 2.0 }, { x: 19, z: 12, w: 2.8, d: 2.5, h: 2.0 },
       { x: 18, z: 8, w: 2.2, d: 2.0, h: 2.2 }, { x: 15, z: 13, w: 3.0, d: 2.5, h: 1.8 },
       { x: -14, z: 16, w: 2.5, d: 2.2, h: 2.0 }, { x: -16, z: 14, w: 2.0, d: 2.0, h: 1.8 },
       { x: 22, z: -10, w: 2.5, d: 2.5, h: 2.0 }, { x: 24, z: -8, w: 3.0, d: 2.5, h: 2.5 },
-      { x: -30, z: -20, w: 2.0, d: 1.8, h: 1.5 }, { x: 40, z: 25, w: 2.5, d: 2.0, h: 1.8 },
-      { x: -35, z: 15, w: 2.2, d: 2.2, h: 2.0 }, { x: 20, z: -25, w: 2.0, d: 2.0, h: 1.6 },
     ];
     for (const h of houses) {
       const y = terrainH(h.x * S, h.z * S);
@@ -212,7 +210,8 @@ export class World {
   }
 
   _dust() {
-    const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const x = c.getContext('2d');
     const g = x.createRadialGradient(32, 32, 1, 32, 32, 31);
     g.addColorStop(0, 'rgba(220,200,170,.7)'); g.addColorStop(1, 'rgba(220,200,170,0)');
     x.fillStyle = g; x.fillRect(0, 0, 64, 64);
