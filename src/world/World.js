@@ -28,6 +28,7 @@ export class World {
     this._pond();
     this._paths();
     this._butterflies();
+    this._hatShop();
     this._dust();
   }
 
@@ -330,6 +331,28 @@ export class World {
     }
   }
 
+
+  _hatShop() {
+    // Sophie's hat shop — small cottage with sign
+    const S = WORLD_SCALE;
+    const x = -28 * S, z = -15 * S, y = terrainH(x, z);
+    // Main building
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(2.5 * S, 2.0 * S, 2.0 * S), matStd(0xD4B888));
+    wall.position.set(x, y + 1.0 * S, z); wall.castShadow = true; this.envGroup.add(wall);
+    addBox(V3(x, y + 1.0 * S, z), V3(1.25 * S, 1.0 * S, 1.0 * S));
+    // Roof
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(1.8 * S, 1.0 * S, 4), matStd(0x6A3020));
+    roof.position.set(x, y + 2.5 * S, z); roof.rotation.y = Math.PI / 4; roof.castShadow = true; this.envGroup.add(roof);
+    // Door
+    const door = new THREE.Mesh(new THREE.BoxGeometry(0.5 * S, 0.8 * S, 0.08 * S), matStd(0x4a3020));
+    door.position.set(x, y + 0.4 * S, z + 1.02 * S); door.castShadow = true; this.envGroup.add(door);
+    // Window with warm glow
+    const win = new THREE.Mesh(new THREE.BoxGeometry(0.35 * S, 0.3 * S, 0.06 * S), matStd(0xFFB347, { emissive: 0xFFA030, emissiveIntensity: 0.6 }));
+    win.position.set(x + 0.6 * S, y + 1.2 * S, z + 1.02 * S); this.envGroup.add(win);
+    // Small sign
+    const sign = new THREE.Mesh(new THREE.BoxGeometry(0.8 * S, 0.3 * S, 0.04 * S), matStd(0x6a4a2a));
+    sign.position.set(x, y + 1.8 * S, z + 1.05 * S); sign.castShadow = true; this.envGroup.add(sign);
+  }
   _butterflies() {
     const colors = [0xFF8844, 0xFFCC00, 0xFFFFFF, 0xFF6688];
     this._butterflies = [];
