@@ -233,8 +233,6 @@ export class Spider {
       this._part(this.root, new THREE.CylinderGeometry(0.01, 0.01, 0.3, 4), M.darkIron, lx, ly + 0.18, lz);
     }
     // ---- TRAILING: boiler / abdomen ----
-    // ---- TRAILING: boiler / abdomen ----
-    // ---- TRAILING: boiler / abdomen ----
     const py = this.PEDICEL.y, pz = this.PEDICEL.z;
     this.body = this._part(this.abdomen, new THREE.BoxGeometry(2.2, 1.5, 2.0), M.rustIron, 0, 0.0 - py, -1.6 - pz);
     // Furnace slit (glowing)

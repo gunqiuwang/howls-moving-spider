@@ -25,6 +25,9 @@ export class World {
     this._well();
     this._fences();
     this._bushes();
+    this._pond();
+    this._paths();
+    this._butterflies();
     this._dust();
   }
 
@@ -267,6 +270,88 @@ export class World {
     }
   }
 
+
+  _pond() {
+    const S = WORLD_SCALE;
+    const x = -35 * S, z = -25 * S;
+    const y = terrainH(x, z) - 0.3;
+    // Water surface (flat disc with transparency)
+    const water = new THREE.Mesh(
+      new THREE.CircleGeometry(4 * S, 24),
+      new THREE.MeshStandardMaterial({ color: 0x4488AA, transparent: true, opacity: 0.6, roughness: 0.2, metalness: 0.3 })
+    );
+    water.position.set(x, y, z); water.rotation.x = -Math.PI / 2; water.receiveShadow = true;
+    this.envGroup.add(water);
+    // Surrounding rocks
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + Math.random() * 0.3;
+      const r = 3.5 * S + Math.random() * 1.5 * S;
+      const rx = x + Math.cos(a) * r, rz = z + Math.sin(a) * r;
+      const ry = terrainH(rx, rz);
+      const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(0.3 + Math.random() * 0.4, 0), matStd(0x6a6055));
+      rock.position.set(rx, ry + 0.2, rz); rock.rotation.set(Math.random(), Math.random(), Math.random());
+      rock.castShadow = true; this.envGroup.add(rock);
+    }
+  }
+
+  _paths() {
+    const S = WORLD_SCALE;
+    const pathMat = new THREE.MeshStandardMaterial({ color: 0xB8A888, roughness: 0.95, metalness: 0.02 });
+    // Path from center toward village
+    const points = [[0, 0], [5, 3], [10, 6], [15, 9], [20, 12]];
+    for (let i = 0; i < points.length - 1; i++) {
+      const [x1, z1] = points[i], [x2, z2] = points[i + 1];
+      const mx = (x1 + x2) / 2 * S, mz = (z1 + z2) / 2 * S;
+      const my = terrainH(mx, mz);
+      const dx = x2 - x1, dz = z2 - z1;
+      const len = Math.sqrt(dx * dx + dz * dz) * S;
+      const path = new THREE.Mesh(new THREE.BoxGeometry(len, 0.05, 1.5 * S), pathMat);
+      path.position.set(mx, my + 0.03, mz);
+      path.rotation.y = -Math.atan2(dz, dx);
+      path.receiveShadow = true; this.envGroup.add(path);
+    }
+  }
+
+  _butterflies() {
+    // Small colorful particles that flutter around
+    const colors = [0xFF8844, 0xFFCC00, 0xFFFFFF, 0xFF6688];
+    this._butterflies = [];
+    for (let i = 0; i < 15; i++) {
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      const wing = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.15, 0.1),
+        new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.3, side: THREE.DoubleSide, transparent: true, opacity: 0.8 })
+      );
+      const x = (Math.random() - 0.5) * 60, z = (Math.random() - 0.5) * 60;
+      const y = terrainH(x, z) + 1 + Math.random() * 3;
+      wing.position.set(x, y, z);
+      this.envGroup.add(wing);
+      this._butterflies.push({
+        mesh: wing,
+        baseY: y,
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.5 + Math.random() * 1.0,
+        radius: 2 + Math.random() * 4,
+        centerX: x, centerZ: z,
+      });
+    }
+  }
+
+  updateButterflies(dt) {
+    if (!this._butterflies) return;
+    const t = performance.now() * 0.001;
+    for (const b of this._butterflies) {
+      b.mesh.position.x = b.centerX + Math.sin(t * b.speed + b.phase) * b.radius;
+      b.mesh.position.z = b.centerZ + Math.cos(t * b.speed * 0.7 + b.phase) * b.radius;
+      b.mesh.position.y = b.baseY + Math.sin(t * 3 + b.phase) * 0.5;
+      b.mesh.rotation.y = Math.atan2(
+        Math.cos(t * b.speed + b.phase) * b.radius,
+        -Math.sin(t * b.speed * 0.7 + b.phase) * b.radius
+      );
+      // Wing flap
+      b.mesh.rotation.x = Math.sin(t * 8 + b.phase) * 0.5;
+    }
+  }
   updateClouds(dt) {
     if (!this.clouds) return;
     for (const c of this.clouds) { c.position.x += c.userData.speed * dt; if (c.position.x > 120) c.position.x = -120; }

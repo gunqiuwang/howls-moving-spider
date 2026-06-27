@@ -120,7 +120,7 @@ if (spider) {
     try {
       const inp = input.getInput();
       spider.update(dt, inp);
-      world.updateDust(dt); world.updateClouds(dt);
+      world.updateDust(dt); world.updateClouds(dt); world.updateButterflies(dt);
       spiderCam.update(dt, spider, input.dragging);
       renderer.render(scene, camera);
     } catch (err) { crashed = true; fatal('Runtime error: ' + (err && err.message ? err.message : err)); console.error(err); }
