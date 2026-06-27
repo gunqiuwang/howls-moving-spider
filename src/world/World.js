@@ -213,7 +213,7 @@ export class World {
       const mat = houseMats[Math.floor(Math.random() * houseMats.length)];
       const wall = new THREE.Mesh(new THREE.BoxGeometry(h.w * S, h.h * S, h.d * S), mat);
       wall.position.set(h.x * S, y + h.h * S * 0.5, h.z * S);
-      wall.rotation.y = Math.random() * 0.3; wall.castShadow = wall.receiveShadow = true; this.envGroup.add(wall);
+      wall.rotation.y = Math.random() * 0.3; wall.castShadow = wall.receiveShadow = true; this.envGroup.add(wall); addBox(V3(h.x * S, y + h.h * S * 0.5, h.z * S), V3(h.w * S * 0.5, h.h * S * 0.5, h.d * S * 0.5));
       const roof = new THREE.Mesh(new THREE.ConeGeometry(Math.max(h.w, h.d) * S * 0.75, h.h * S * 0.6, 4), roofMat);
       roof.position.set(h.x * S, y + h.h * S + h.h * S * 0.3, h.z * S);
       roof.rotation.y = Math.PI / 4 + Math.random() * 0.3; roof.castShadow = true; this.envGroup.add(roof);
@@ -246,7 +246,7 @@ export class World {
     const S = WORLD_SCALE;
     const x = -25 * S, z = 30 * S, y = terrainH(x, z);
     const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.8 * S, 1.2 * S, 5 * S, 8), matStd(0xD4C098));
-    tower.position.set(x, y + 2.5 * S, z); tower.castShadow = true; this.envGroup.add(tower);
+    tower.position.set(x, y + 2.5 * S, z); tower.castShadow = true; this.envGroup.add(tower); addBox(V3(x, y + 2.5 * S, z), V3(0.8 * S, 2.5 * S, 0.8 * S));
     const roof = new THREE.Mesh(new THREE.ConeGeometry(1.0 * S, 1.5 * S, 6), matStd(0x6A3020));
     roof.position.set(x, y + 5.75 * S, z); roof.castShadow = true; this.envGroup.add(roof);
     this._windmillBlades = new THREE.Group();
