@@ -467,15 +467,15 @@ export class Spider {
     for (const L of this.legs) {
       const hipW = this.root.localToWorld(L.hip.clone());
       const out = hipW.clone().sub(this.bodyOrigin); out.addScaledVector(this.up, -out.dot(this.up)); if (out.lengthSq() < 1e-4) out.copy(this.fwd); out.normalize();
-      const spread = lerp(1, 1.8, t), droop = lerp(0.5, 0.15, t);
+      // Tuck legs tightly against body in flight
+      const spread = lerp(1, 1.3, t), droop = lerp(0.5, 0.25, t);
       const knee = hipW.clone().addScaledVector(out, this.femur * spread).addScaledVector(this.up, -this.femur * droop);
-      const ankle = knee.clone().addScaledVector(out, this.tibia * 0.3).addScaledVector(this.up, -this.tibia * 0.6);
-      const foot = ankle.clone().addScaledVector(this.up, -this.tarsus * 0.5);
+      const ankle = knee.clone().addScaledVector(out, this.tibia * 0.15).addScaledVector(this.up, -this.tibia * 0.35);
+      const foot = ankle.clone().addScaledVector(this.up, -this.tarsus * 0.3);
       L.plant.copy(foot);
       this._poseLegMeshes(L, hipW, knee, ankle, foot);
-      // Claws spread open in flight
-      L.clawAngle = lerp(L.clawAngle, 0.6, 1 - Math.pow(0.05, 0.016));
-      this._updateClaws(L, foot);
+      // Hide claws in flight
+      L.clawGroup.visible = false;
     }
   }
   pounce(dir, power = 1) {
@@ -509,6 +509,8 @@ export class Spider {
     if (N) this.up.copy(N).normalize();
     this.pos.copy(P); this.bodyOrigin.copy(this.pos).addScaledVector(this.up, this.rideClear); this.rebuild(); this.setRoot();
     for (const L of this.legs) { const hw = this.root.localToWorld(L.home.clone()); const g = this.footProbe(hw); L.plant.copy(g.point); L.surfN.copy(g.n); L.toN.copy(g.n); L.from.copy(g.point); L.to.copy(g.point); L.t = 1; L.stepping = false; }
+    // Restore claws visible on landing
+    for (const L of this.legs) { if (!L.lost) L.clawGroup.visible = true; }
     // Landing dust
     this._dustLand.emit(P.clone(), V3(0, 1, 0), 3, 8);
   }
