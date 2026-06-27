@@ -47,18 +47,38 @@ export class World {
   }
 
   _sky() {
-    const c = document.createElement('canvas'); c.width = 16; c.height = 256;
+    const c = document.createElement('canvas'); c.width = 512; c.height = 512;
     const x = c.getContext('2d');
-    const g = x.createLinearGradient(0, 0, 0, 256);
-    g.addColorStop(0, '#2860A0');
-    g.addColorStop(0.3, '#3878C0');
-    g.addColorStop(0.6, '#5098D8');
-    g.addColorStop(0.85, '#78B8E8');
-    g.addColorStop(1, '#A0D0F0');
-    x.fillStyle = g; x.fillRect(0, 0, 16, 256);
+    const skyGrad = x.createLinearGradient(0, 0, 0, 512);
+    skyGrad.addColorStop(0, '#1a3a6a');
+    skyGrad.addColorStop(0.25, '#2a5a9a');
+    skyGrad.addColorStop(0.5, '#4a88c8');
+    skyGrad.addColorStop(0.7, '#7ab8e0');
+    skyGrad.addColorStop(0.85, '#b0d8f0');
+    skyGrad.addColorStop(0.95, '#e8d0a0');
+    skyGrad.addColorStop(1, '#f0c878');
+    x.fillStyle = skyGrad; x.fillRect(0, 0, 512, 512);
+    // Sun disc
+    const sunX = 380, sunY = 380, sunR = 60;
+    const sunGlow = x.createRadialGradient(sunX, sunY, 0, sunX, sunY, sunR * 3);
+    sunGlow.addColorStop(0, 'rgba(255,240,200,0.6)');
+    sunGlow.addColorStop(0.3, 'rgba(255,220,150,0.3)');
+    sunGlow.addColorStop(0.7, 'rgba(255,200,100,0.1)');
+    sunGlow.addColorStop(1, 'rgba(255,180,80,0)');
+    x.fillStyle = sunGlow; x.beginPath(); x.arc(sunX, sunY, sunR * 3, 0, Math.PI * 2); x.fill();
+    const sunCore = x.createRadialGradient(sunX, sunY, 0, sunX, sunY, sunR);
+    sunCore.addColorStop(0, 'rgba(255,255,240,1)');
+    sunCore.addColorStop(0.5, 'rgba(255,240,200,0.9)');
+    sunCore.addColorStop(1, 'rgba(255,220,150,0)');
+    x.fillStyle = sunCore; x.beginPath(); x.arc(sunX, sunY, sunR, 0, Math.PI * 2); x.fill();
+    // Warm horizon haze
+    const hazeGrad = x.createLinearGradient(0, 400, 0, 512);
+    hazeGrad.addColorStop(0, 'rgba(255,220,160,0)');
+    hazeGrad.addColorStop(0.5, 'rgba(255,210,140,0.15)');
+    hazeGrad.addColorStop(1, 'rgba(255,200,120,0.3)');
+    x.fillStyle = hazeGrad; x.fillRect(0, 400, 512, 112);
     this.scene.background = new THREE.CanvasTexture(c);
-    // Subtle distance haze — only fades far objects, doesn't block near view
-    this.scene.fog = new THREE.Fog(0xC8DDE8, 180, 500);
+    this.scene.fog = new THREE.Fog(0xd8e0e8, 200, 600);
   }
 
   _terrain() {
@@ -80,8 +100,7 @@ export class World {
     }
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     this.terrain = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0.02 }));
-    this.terrain.receiveShadow = true;
-    this.scene.add(this.terrain);
+    this.terrain.receiveShadow = true; this.scene.add(this.terrain);
   }
 
   _edgeLines(mesh, color, op) {
@@ -92,8 +111,7 @@ export class World {
     const y = terrainH(x, z);
     const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), this._matRock);
     m.position.set(x, y + r * 0.5, z); m.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
-    m.castShadow = m.receiveShadow = true; this.envGroup.add(m);
-    addSphere(V3(x, y + r * 0.5, z), r);
+    m.castShadow = m.receiveShadow = true; this.envGroup.add(m); addSphere(V3(x, y + r * 0.5, z), r);
   }
   _box(cx, cy, cz, hx, hy, hz, q, color, emis) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(hx * 2, hy * 2, hz * 2),
@@ -123,24 +141,34 @@ export class World {
   }
 
   _clouds() {
-    const c = document.createElement('canvas'); c.width = 128; c.height = 64;
-    const x = c.getContext('2d');
-    const grad = x.createRadialGradient(64, 32, 5, 64, 32, 50);
-    grad.addColorStop(0, 'rgba(255,250,240,0.9)'); grad.addColorStop(0.6, 'rgba(255,245,230,0.4)'); grad.addColorStop(1, 'rgba(255,240,220,0)');
-    x.fillStyle = grad; x.fillRect(0, 0, 128, 64);
-    for (let i = 0; i < 5; i++) {
-      const bx = 30 + Math.random() * 68, by = 20 + Math.random() * 24, br = 12 + Math.random() * 18;
-      const g2 = x.createRadialGradient(bx, by, 2, bx, by, br);
-      g2.addColorStop(0, 'rgba(255,252,245,0.7)'); g2.addColorStop(1, 'rgba(255,248,235,0)');
-      x.fillStyle = g2; x.beginPath(); x.ellipse(bx, by, br, br * 0.6, 0, 0, Math.PI * 2); x.fill();
+    const c = document.createElement('canvas'); c.width = 256; c.height = 128;
+    const x = c.getContext('2d'); x.clearRect(0, 0, 256, 128);
+    const blobs = [
+      { x: 128, y: 64, rx: 80, ry: 35 }, { x: 90, y: 58, rx: 50, ry: 28 },
+      { x: 170, y: 60, rx: 55, ry: 30 }, { x: 110, y: 50, rx: 40, ry: 22 },
+      { x: 150, y: 52, rx: 45, ry: 24 }, { x: 70, y: 65, rx: 35, ry: 20 },
+      { x: 190, y: 68, rx: 38, ry: 22 },
+    ];
+    for (const b of blobs) {
+      const grad = x.createRadialGradient(b.x, b.y - 5, 0, b.x, b.y, b.rx);
+      grad.addColorStop(0, 'rgba(255,255,250,0.85)');
+      grad.addColorStop(0.4, 'rgba(255,252,245,0.6)');
+      grad.addColorStop(0.7, 'rgba(255,248,235,0.3)');
+      grad.addColorStop(1, 'rgba(255,245,230,0)');
+      x.fillStyle = grad; x.beginPath(); x.ellipse(b.x, b.y, b.rx, b.ry, 0, 0, Math.PI * 2); x.fill();
     }
+    const warmEdge = x.createLinearGradient(0, 70, 0, 128);
+    warmEdge.addColorStop(0, 'rgba(255,220,160,0)');
+    warmEdge.addColorStop(0.5, 'rgba(255,210,140,0.08)');
+    warmEdge.addColorStop(1, 'rgba(255,200,120,0.12)');
+    x.fillStyle = warmEdge; x.fillRect(0, 70, 256, 58);
     const tex = new THREE.CanvasTexture(c);
     this.clouds = [];
-    for (let i = 0; i < 25; i++) {
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.8 + Math.random() * 0.15, depthWrite: false }));
-      sp.position.set((Math.random() - 0.5) * 250, 50 + Math.random() * 30, (Math.random() - 0.5) * 250);
+    for (let i = 0; i < 30; i++) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.7 + Math.random() * 0.2, depthWrite: false }));
+      sp.position.set((Math.random() - 0.5) * 300, 50 + Math.random() * 30, (Math.random() - 0.5) * 300);
       const s = 12 + Math.random() * 18; sp.scale.set(s * 2, s, 1);
-      sp.userData.speed = 0.3 + Math.random() * 0.5;
+      sp.userData.speed = 0.2 + Math.random() * 0.4;
       this.scene.add(sp); this.clouds.push(sp);
     }
   }
@@ -149,20 +177,21 @@ export class World {
     const trunkMat = matStd(0x5A3A20);
     const leafMats = [matStd(0x5A9A40), matStd(0x3A7A28), matStd(0x2A5A18)];
     const treeData = []; let tries = 0;
-    while (treeData.length < 40 && tries < 300) {
+    while (treeData.length < 50 && tries < 400) {
       tries++; const x = (Math.random() - 0.5) * FIELD * 0.8; const z = (Math.random() - 0.5) * FIELD * 0.8;
       if (Math.abs(x) < 12 && Math.abs(z) < 12) continue;
-      const y = terrainH(x, z); const h = 1.5 + Math.random() * 3; const r = 0.6 + Math.random() * 1.0;
+      const y = terrainH(x, z); const h = 1.5 + Math.random() * 3.5; const r = 0.5 + Math.random() * 1.2;
       treeData.push({ x, y, z, h, r });
     }
     for (const t of treeData) {
       const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.15, t.h * 0.4, 5), trunkMat);
       trunk.position.set(t.x, t.y + t.h * 0.2, t.z); trunk.castShadow = true; this.envGroup.add(trunk);
       const leafMat = leafMats[Math.floor(Math.random() * leafMats.length)];
-      for (let j = 0; j < 2 + Math.floor(Math.random() * 2); j++) {
-        const coneH = t.h * (0.5 - j * 0.1); const coneR = t.r * (1 - j * 0.2);
-        const cone = new THREE.Mesh(new THREE.ConeGeometry(coneR, coneH, 6), leafMat);
-        cone.position.set(t.x, t.y + t.h * 0.4 + j * t.h * 0.2, t.z);
+      const layers = 2 + Math.floor(Math.random() * 2);
+      for (let j = 0; j < layers; j++) {
+        const coneH = t.h * (0.5 - j * 0.08); const coneR = t.r * (1 - j * 0.15);
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(coneR, coneH, 6 + Math.floor(Math.random() * 3)), leafMat);
+        cone.position.set(t.x, t.y + t.h * 0.4 + j * t.h * 0.18, t.z);
         cone.rotation.y = Math.random() * Math.PI; cone.castShadow = true; this.envGroup.add(cone);
       }
     }
@@ -177,6 +206,7 @@ export class World {
       { x: 18, z: 8, w: 2.2, d: 2.0, h: 2.2 }, { x: 15, z: 13, w: 3.0, d: 2.5, h: 1.8 },
       { x: -14, z: 16, w: 2.5, d: 2.2, h: 2.0 }, { x: -16, z: 14, w: 2.0, d: 2.0, h: 1.8 },
       { x: 22, z: -10, w: 2.5, d: 2.5, h: 2.0 }, { x: 24, z: -8, w: 3.0, d: 2.5, h: 2.5 },
+      { x: -30, z: -20, w: 2.0, d: 1.8, h: 1.5 }, { x: 40, z: 25, w: 2.5, d: 2.0, h: 1.8 },
     ];
     for (const h of houses) {
       const y = terrainH(h.x * S, h.z * S);
@@ -192,26 +222,25 @@ export class World {
 
   _flowers() {
     const colors = [0xE85050, 0xF0C040, 0xFFFFFF, 0xCC80FF, 0xFF80AA, 0xFF6040, 0x40C0FF];
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 120; i++) {
       const x = (Math.random() - 0.5) * FIELD * 0.7; const z = (Math.random() - 0.5) * FIELD * 0.7;
       if (Math.abs(x) < 15 && Math.abs(z) < 15) continue;
       const y = terrainH(x, z); const c = colors[Math.floor(Math.random() * colors.length)];
-      const flower = new THREE.Mesh(new THREE.SphereGeometry(0.25 + Math.random() * 0.15, 6, 4), matStd(c, { emissive: c, emissiveIntensity: 0.15 }));
+      const flower = new THREE.Mesh(new THREE.SphereGeometry(0.2 + Math.random() * 0.12, 6, 4), matStd(c, { emissive: c, emissiveIntensity: 0.15 }));
       flower.position.set(x, y + 0.1, z); flower.scale.y = 0.6; this.envGroup.add(flower);
     }
   }
 
   _grassClumps() {
     const grassMat = matStd(0x5A9A38);
-    for (let i = 0; i < 80; i++) {
+    for (let i = 0; i < 100; i++) {
       const x = (Math.random() - 0.5) * FIELD * 0.7; const z = (Math.random() - 0.5) * FIELD * 0.7;
       if (Math.abs(x) < 12 && Math.abs(z) < 12) continue;
-      const y = terrainH(x, z); const h = 0.3 + Math.random() * 0.4;
-      const clump = new THREE.Mesh(new THREE.ConeGeometry(0.18, h, 4), grassMat);
+      const y = terrainH(x, z); const h = 0.3 + Math.random() * 0.5;
+      const clump = new THREE.Mesh(new THREE.ConeGeometry(0.15, h, 4), grassMat);
       clump.position.set(x, y + h * 0.5, z); clump.rotation.y = Math.random() * Math.PI; this.envGroup.add(clump);
     }
   }
-
 
   _windmill() {
     const S = WORLD_SCALE;
@@ -261,7 +290,7 @@ export class World {
 
   _bushes() {
     const bushMats = [matStd(0x3a6a28), matStd(0x2a5a18)];
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 35; i++) {
       const x = (Math.random() - 0.5) * FIELD * 0.6, z = (Math.random() - 0.5) * FIELD * 0.6;
       if (Math.abs(x) < 14 && Math.abs(z) < 14) continue;
       const y = terrainH(x, z), r = 0.4 + Math.random() * 0.6;
@@ -270,24 +299,17 @@ export class World {
     }
   }
 
-
   _pond() {
     const S = WORLD_SCALE;
-    const x = -35 * S, z = -25 * S;
-    const y = terrainH(x, z) - 0.3;
-    // Water surface (flat disc with transparency)
+    const x = -35 * S, z = -25 * S, y = terrainH(x, z) - 0.3;
     const water = new THREE.Mesh(
       new THREE.CircleGeometry(4 * S, 24),
       new THREE.MeshStandardMaterial({ color: 0x4488AA, transparent: true, opacity: 0.6, roughness: 0.2, metalness: 0.3 })
     );
-    water.position.set(x, y, z); water.rotation.x = -Math.PI / 2; water.receiveShadow = true;
-    this.envGroup.add(water);
-    // Surrounding rocks
+    water.position.set(x, y, z); water.rotation.x = -Math.PI / 2; water.receiveShadow = true; this.envGroup.add(water);
     for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2 + Math.random() * 0.3;
-      const r = 3.5 * S + Math.random() * 1.5 * S;
-      const rx = x + Math.cos(a) * r, rz = z + Math.sin(a) * r;
-      const ry = terrainH(rx, rz);
+      const a = (i / 8) * Math.PI * 2 + Math.random() * 0.3, r = 3.5 * S + Math.random() * 1.5 * S;
+      const rx = x + Math.cos(a) * r, rz = z + Math.sin(a) * r, ry = terrainH(rx, rz);
       const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(0.3 + Math.random() * 0.4, 0), matStd(0x6a6055));
       rock.position.set(rx, ry + 0.2, rz); rock.rotation.set(Math.random(), Math.random(), Math.random());
       rock.castShadow = true; this.envGroup.add(rock);
@@ -297,23 +319,18 @@ export class World {
   _paths() {
     const S = WORLD_SCALE;
     const pathMat = new THREE.MeshStandardMaterial({ color: 0xB8A888, roughness: 0.95, metalness: 0.02 });
-    // Path from center toward village
     const points = [[0, 0], [5, 3], [10, 6], [15, 9], [20, 12]];
     for (let i = 0; i < points.length - 1; i++) {
       const [x1, z1] = points[i], [x2, z2] = points[i + 1];
-      const mx = (x1 + x2) / 2 * S, mz = (z1 + z2) / 2 * S;
-      const my = terrainH(mx, mz);
-      const dx = x2 - x1, dz = z2 - z1;
-      const len = Math.sqrt(dx * dx + dz * dz) * S;
+      const mx = (x1 + x2) / 2 * S, mz = (z1 + z2) / 2 * S, my = terrainH(mx, mz);
+      const len = Math.hypot(x2 - x1, z2 - z1) * S;
       const path = new THREE.Mesh(new THREE.BoxGeometry(len, 0.05, 1.5 * S), pathMat);
-      path.position.set(mx, my + 0.03, mz);
-      path.rotation.y = -Math.atan2(dz, dx);
+      path.position.set(mx, my + 0.03, mz); path.rotation.y = -Math.atan2(z2 - z1, x2 - x1);
       path.receiveShadow = true; this.envGroup.add(path);
     }
   }
 
   _butterflies() {
-    // Small colorful particles that flutter around
     const colors = [0xFF8844, 0xFFCC00, 0xFFFFFF, 0xFF6688];
     this._butterflies = [];
     for (let i = 0; i < 15; i++) {
@@ -324,16 +341,8 @@ export class World {
       );
       const x = (Math.random() - 0.5) * 60, z = (Math.random() - 0.5) * 60;
       const y = terrainH(x, z) + 1 + Math.random() * 3;
-      wing.position.set(x, y, z);
-      this.envGroup.add(wing);
-      this._butterflies.push({
-        mesh: wing,
-        baseY: y,
-        phase: Math.random() * Math.PI * 2,
-        speed: 0.5 + Math.random() * 1.0,
-        radius: 2 + Math.random() * 4,
-        centerX: x, centerZ: z,
-      });
+      wing.position.set(x, y, z); this.envGroup.add(wing);
+      this._butterflies.push({ mesh: wing, baseY: y, phase: Math.random() * Math.PI * 2, speed: 0.5 + Math.random() * 1.0, radius: 2 + Math.random() * 4, centerX: x, centerZ: z });
     }
   }
 
@@ -344,17 +353,14 @@ export class World {
       b.mesh.position.x = b.centerX + Math.sin(t * b.speed + b.phase) * b.radius;
       b.mesh.position.z = b.centerZ + Math.cos(t * b.speed * 0.7 + b.phase) * b.radius;
       b.mesh.position.y = b.baseY + Math.sin(t * 3 + b.phase) * 0.5;
-      b.mesh.rotation.y = Math.atan2(
-        Math.cos(t * b.speed + b.phase) * b.radius,
-        -Math.sin(t * b.speed * 0.7 + b.phase) * b.radius
-      );
-      // Wing flap
+      b.mesh.rotation.y = Math.atan2(Math.cos(t * b.speed + b.phase) * b.radius, -Math.sin(t * b.speed * 0.7 + b.phase) * b.radius);
       b.mesh.rotation.x = Math.sin(t * 8 + b.phase) * 0.5;
     }
   }
+
   updateClouds(dt) {
     if (!this.clouds) return;
-    for (const c of this.clouds) { c.position.x += c.userData.speed * dt; if (c.position.x > 120) c.position.x = -120; }
+    for (const c of this.clouds) { c.position.x += c.userData.speed * dt; if (c.position.x > 150) c.position.x = -150; }
     if (this._windmillBlades) this._windmillBlades.rotation.z += dt * 0.3;
   }
 
