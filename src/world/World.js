@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { V3, Q, Y_UP, TAU, clamp01, lerp } from '../core/dynamics.js';
 import { FIELD, terrainH, WORLD_SCALE } from './terrain.js';
 import { addSphere, addBox, clearColliders } from './collision.js';
-import { toonMat, GHIBLI } from '../textures.js';
+import { matStd } from '../materials.js';
 
 const TOUCH = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
 
@@ -89,7 +89,7 @@ export class World {
   }
   _box(cx, cy, cz, hx, hy, hz, q, color, emis) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(hx * 2, hy * 2, hz * 2),
-      toonMat(color || 0x8A7E70, { emissive: emis || 0x000000, emissiveIntensity: emis ? 0.3 : 0 }));
+      matStd(color || 0x8A7E70, { emissive: emis || 0x000000, emissiveIntensity: emis ? 0.3 : 0 }));
     m.position.set(cx, cy, cz); if (q) m.quaternion.copy(q); m.castShadow = m.receiveShadow = true;
     this.envGroup.add(m); this._edgeLines(m, 0xc8a060, 0.2); addBox(V3(cx, cy, cz), V3(hx, hy, hz), q);
   }
@@ -97,7 +97,7 @@ export class World {
 
   _environment() {
     const S = WORLD_SCALE;
-    this._matRock = toonMat(0x8A7E70);
+    this._matRock = matStd(0x8A7E70);
     const zx = 15 * S, zz = -13 * S; let yy = terrainH(zx, zz) - 0.4 * S;
     for (const t of [[10, 1.0, 10], [7.4, 1.0, 7.4], [5, 1.05, 5], [3, 1.1, 3]]) { const h = t[1] * S; this._box(zx, yy + h, zz, t[0] * 0.5 * S, h, t[2] * 0.5 * S, null, 0x6a5840); yy += h * 2; }
     const px = -17 * S, pz = 0;
@@ -138,8 +138,8 @@ export class World {
   }
 
   _trees() {
-    const trunkMat = toonMat(0x5A3A20);
-    const leafMats = [toonMat(0x5A9A40), toonMat(0x3A7A28), toonMat(0x2A5A18)];
+    const trunkMat = matStd(0x5A3A20);
+    const leafMats = [matStd(0x5A9A40), matStd(0x3A7A28), matStd(0x2A5A18)];
     const treeData = []; let tries = 0;
     while (treeData.length < 40 && tries < 300) {
       tries++; const x = (Math.random() - 0.5) * FIELD * 0.8; const z = (Math.random() - 0.5) * FIELD * 0.8;
@@ -161,8 +161,8 @@ export class World {
   }
 
   _village() {
-    const houseMats = [toonMat(0xD4B888), toonMat(0xC8A878), toonMat(0xD4C098)];
-    const roofMat = toonMat(0x6A3020);
+    const houseMats = [matStd(0xD4B888), matStd(0xC8A878), matStd(0xD4C098)];
+    const roofMat = matStd(0x6A3020);
     const S = WORLD_SCALE;
     const houses = [
       { x: 16, z: 10, w: 2.5, d: 2.5, h: 2.0 }, { x: 19, z: 12, w: 2.8, d: 2.5, h: 2.0 },
@@ -188,13 +188,13 @@ export class World {
       const x = (Math.random() - 0.5) * FIELD * 0.7; const z = (Math.random() - 0.5) * FIELD * 0.7;
       if (Math.abs(x) < 15 && Math.abs(z) < 15) continue;
       const y = terrainH(x, z); const c = colors[Math.floor(Math.random() * colors.length)];
-      const flower = new THREE.Mesh(new THREE.SphereGeometry(0.25 + Math.random() * 0.15, 6, 4), toonMat(c, { emissive: c, emissiveIntensity: 0.15 }));
+      const flower = new THREE.Mesh(new THREE.SphereGeometry(0.25 + Math.random() * 0.15, 6, 4), matStd(c, { emissive: c, emissiveIntensity: 0.15 }));
       flower.position.set(x, y + 0.1, z); flower.scale.y = 0.6; this.envGroup.add(flower);
     }
   }
 
   _grassClumps() {
-    const grassMat = toonMat(0x5A9A38);
+    const grassMat = matStd(0x5A9A38);
     for (let i = 0; i < 80; i++) {
       const x = (Math.random() - 0.5) * FIELD * 0.7; const z = (Math.random() - 0.5) * FIELD * 0.7;
       if (Math.abs(x) < 12 && Math.abs(z) < 12) continue;

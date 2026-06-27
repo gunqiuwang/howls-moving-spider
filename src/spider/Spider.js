@@ -5,7 +5,7 @@ import {
 } from '../core/dynamics.js';
 import { FIELD, terrainH, terrainN } from '../world/terrain.js';
 import { colliders, castAll, clearance, occluded } from '../world/collision.js';
-import { makeBrickTexture, makeStoneTexture, makeWoodTexture, makeRoofTexture, makeRustTexture, makePlasterTexture, texturedMat, toonMat, GHIBLI } from '../textures.js';
+import { getMaterials, matStd } from '../materials.js';
 
 export const TUNE = { aRange: 3.14, aSamp: 8, decomposed: true };
 
@@ -16,15 +16,8 @@ function ikKnee(root, target, l1, l2, pole, restAxis, out) {
 }
 
 const GEO = { cyl: new THREE.CylinderGeometry(1, 1, 1, 8), joint: new THREE.SphereGeometry(1, 10, 8) };
-function matStd(c, opts = {}) {
-  return new THREE.MeshStandardMaterial({
-    color: c, roughness: opts.r ?? 0.7, metalness: opts.m ?? 0.25,
-    emissive: opts.e || 0x000000, emissiveIntensity: opts.ei ?? 0,
-    flatShading: opts.flat ?? false, ...opts,
-  });
-}
 
-const _t = V3(), _sp = V3(), _depP = V3(), _kUp = V3(0, 1, 0);
+const _sp = V3(), _depP = V3(), _kUp = V3(0, 1, 0);
 const _wUp = V3(), _lUp = V3();
 const _qT = new THREE.Quaternion(), _qDroop = new THREE.Quaternion(), _qI = new THREE.Quaternion(), _qInv = new THREE.Quaternion();
 const _XAX = V3(1, 0, 0), _YAX = V3(0, 1, 0);
@@ -34,14 +27,14 @@ function segPen(a, b, nearC, rad) {
   return pen;
 }
 
-/* ---- verlet smoke / flags ---- */
+/* ---- verlet chains (steam pipes / flags) ---- */
 const _vt = V3();
 class Verlet {
   constructor(scene, anchor, localOff, n, seg, stiffDir, grav, color, rad) {
     this.anchor = anchor; this.localOff = localOff.clone(); this.n = n; this.seg = seg; this.stiff = stiffDir.clone(); this.grav = grav; this.rad = rad;
     this.pts = []; this.prev = []; const base = anchor.localToWorld(localOff.clone());
     for (let i = 0; i < n; i++) { const p = base.clone().addScaledVector(stiffDir, seg * i); this.pts.push(p); this.prev.push(p.clone()); }
-    this.seg_m = []; const M = toonMat(color, { emissive: color, emissiveIntensity: 0.3 });
+    this.seg_m = []; const M = matStd(color, { emissive: color, emissiveIntensity: 0.15 });
     for (let i = 0; i < n - 1; i++) { const c = new THREE.Mesh(GEO.cyl, M); c.castShadow = true; scene.add(c); this.seg_m.push(c); }
   }
   step(dt) {
@@ -56,8 +49,48 @@ class Verlet {
   }
 }
 
+/* ---- Steam particle emitter ---- */
+class SteamEmitter {
+  constructor(scene, count = 30) {
+    this.particles = [];
+    const geo = new THREE.SphereGeometry(0.08, 4, 3);
+    const mat = new THREE.MeshStandardMaterial({ color: 0xd8d0c0, transparent: true, opacity: 0.6, roughness: 1, metalness: 0 });
+    for (let i = 0; i < count; i++) {
+      const m = new THREE.Mesh(geo, mat.clone());
+      m.visible = false; m.castShadow = false;
+      scene.add(m);
+      this.particles.push({ mesh: m, vel: V3(), life: 0, maxLife: 0 });
+    }
+    this._idx = 0;
+  }
+  emit(pos, dir, speed = 3, count = 1) {
+    for (let i = 0; i < count; i++) {
+      const p = this.particles[this._idx = (this._idx + 1) % this.particles.length];
+      p.mesh.position.copy(pos).addScaledVector(dir, Math.random() * 0.2);
+      p.vel.copy(dir).multiplyScalar(speed * (0.6 + Math.random() * 0.8));
+      p.vel.x += (Math.random() - 0.5) * 0.5;
+      p.vel.z += (Math.random() - 0.5) * 0.5;
+      p.life = 0; p.maxLife = 0.4 + Math.random() * 0.4;
+      p.mesh.visible = true; p.mesh.material.opacity = 0.6;
+      const s = 0.3 + Math.random() * 0.3; p.mesh.scale.setScalar(s);
+    }
+  }
+  update(dt) {
+    for (const p of this.particles) {
+      if (!p.mesh.visible) continue;
+      p.life += dt;
+      if (p.life >= p.maxLife) { p.mesh.visible = false; continue; }
+      const t = p.life / p.maxLife;
+      p.mesh.position.addScaledVector(p.vel, dt);
+      p.vel.y += 0.5 * dt; // slight rise
+      p.mesh.scale.setScalar((0.3 + t * 0.8) * (1 + t));
+      p.mesh.material.opacity = 0.6 * (1 - t);
+    }
+  }
+}
+
 /* ============================================================
-   CASTLE — Howl's Moving Castle (IK locomotion unchanged)
+   CASTLE — Howl's Moving Castle (steampunk fortress)
    ============================================================ */
 export class Spider {
   constructor(scene, world) {
@@ -69,230 +102,185 @@ export class Spider {
     this.up = Y_UP.clone(); this.fwd = V3(0, 0, 1); this.right = V3(1, 0, 0); this.heading = 0; this.moveDir = V3(0, 0, 1);
     this.curSpeed = 0; this.activity = 0; this.gaitPhase = 0;
     this.airborne = false; this.vel = V3(); this.tether = null; this.fill = 0.5; this.legsLost = 0;
-    this.flying = false; this.flyT = 0; this.flySpeed = 0; this.flyVel = V3();
     this.bodyConform = true; this.conformLift = false; this.conformTiltW = 0.5;
     this.bodyFlex = true; this.abHang = 0.45; this.abDroop = 0.1; this.abMax = 0.6;
+    this.flying = false; this.flyT = 0; this.flySpeed = 0; this.flyVel = V3();
     this.pos = V3(0, terrainH(0, 0), 0); this.bodyOrigin = V3(0, terrainH(0, 0) + this.rideClear, 0); this.quat = Q();
     this.root = new THREE.Group(); scene.add(this.root);
-    this.buildBody(); this.buildLegs();
+    this._buildBody(); this._buildLegs();
     this.antennae = [
-      new Verlet(scene, this.root, V3(-0.8, 1.6, 0.0), 6, 0.4, V3(-0.1, 0.6, 0.05), 3.0, 0x8b6914, 0.06),
-      new Verlet(scene, this.root, V3(0.8, 1.6, 0.0), 6, 0.4, V3(0.1, 0.6, -0.05), 3.0, 0x8b6914, 0.06),
+      new Verlet(scene, this.root, V3(-0.8, 1.6, 0.0), 6, 0.4, V3(-0.1, 0.6, 0.05), 3.0, 0x4a3e30, 0.06),
+      new Verlet(scene, this.root, V3(0.8, 1.6, 0.0), 6, 0.4, V3(0.1, 0.6, -0.05), 3.0, 0x4a3e30, 0.06),
     ];
+    this._steamJoint = new SteamEmitter(scene, 60);
+    this._steamChimney = new SteamEmitter(scene, 40);
+    this._dustLand = new SteamEmitter(scene, 30);
+    this._sideGearAngle = 0;
     this.reset();
   }
 
-  partOn(parent, geo, mat, x, y, z, sx, sy, sz) { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); if (sx !== undefined) m.scale.set(sx, sy, sz); m.castShadow = true; parent.add(m); return m; }
-  part(geo, mat, x, y, z, sx, sy, sz) { return this.partOn(this.root, geo, mat, x, y, z, sx, sy, sz); }
+  _part(parent, geo, mat, x, y, z) {
+    const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m;
+  }
 
-  buildBody() {
-    // --- Ghibli toon materials ---
-    const G = GHIBLI;
-    const brickWall = toonMat(G.castleBrick);
-    const stoneWall = toonMat(G.castleStone);
-    const woodBeam  = toonMat(G.castleWood);
-    const roofTile  = toonMat(G.castleRoof);
-    const rustMetal = toonMat(G.castleRust);
-    const plaster   = toonMat(G.castleWall);
-    const iron      = toonMat(G.castleIron);
-    const warmLight = toonMat(G.windowGlow, { emissive: G.windowGlow, emissiveIntensity: 1.2 });
-    const eyeGlow   = toonMat(G.eyeGlow, { emissive: G.eyeGlow, emissiveIntensity: 1.8 });
-    const eyeRim    = toonMat(G.eyeRim);
-    const doorMat   = toonMat(G.mouthDark);
-    const pipeMat   = toonMat(G.castleIron);
-    const toothMat  = toonMat(G.toothBone);
+  /* ================================================================
+     BODY — curved metal head + house modules + gears + chimneys
+     ================================================================ */
+  _buildBody() {
+    const M = getMaterials();
 
     this.PEDICEL = V3(0, 0.0, -1.2);
     this.abdomen = new THREE.Group(); this.abdomen.position.copy(this.PEDICEL); this.root.add(this.abdomen);
     this._abQ = new THREE.Quaternion();
 
-    // helper: tilted box
-    const tbox = (w, h, d, mat, x, y, z, rx, ry, rz) => {
-      const m = this.part(new THREE.BoxGeometry(w, h, d), mat, x, y, z);
-      m.rotation.set(rx || 0, ry || 0, rz || 0); return m;
-    };
+    // ---- FRONT: curved metal beast/fish head ----
+    // Main head shell (ellipsoid)
+    const headGeo = new THREE.SphereGeometry(1.6, 10, 8);
+    const head = this._part(this.root, headGeo, M.rustIron, 0, 1.5, 0.8);
+    head.scale.set(1.3, 1.1, 1.0);
 
-    // ============================================================
-    //  HAPHAZARD BODY — mismatched buildings piled chaotically
-    // ============================================================
+    // Lower jaw (slightly smaller, offset down)
+    const jawGeo = new THREE.SphereGeometry(1.2, 8, 6);
+    const jaw = this._part(this.root, jawGeo, M.rustIron, 0, 0.7, 1.0);
+    jaw.scale.set(1.2, 0.6, 0.9);
 
-    // Base platform (wide, irregular)
-    this.part(new THREE.BoxGeometry(4.0, 0.5, 3.4), stoneWall, 0, -0.55, -0.2);
-    this.part(new THREE.BoxGeometry(3.6, 0.3, 3.0), stoneWall, 0, -0.15, -0.1);
-
-    // Main hall (slightly tilted, like it was dropped on crooked)
-    tbox(2.8, 2.0, 2.4, brickWall, 0.1, 1.0, 0.15, 0, 0.03, 0.02);
-    // Second floor block — offset to the RIGHT, smaller, different color
-    tbox(2.0, 1.4, 1.8, plaster, 0.5, 2.4, -0.2, 0, -0.05, 0.04);
-    // Third floor — even more offset, green-tinted metal
-    tbox(1.4, 1.0, 1.2, rustMetal, 0.8, 3.4, 0.0, 0, 0, 0.06);
-
-    // Left tower — tall, leaning slightly
-    tbox(1.0, 2.6, 0.9, stoneWall, -0.9, 2.6, 0.3, 0, 0, 0.08);
-    this.part(new THREE.ConeGeometry(0.75, 1.3, 5), roofTile, -0.9, 4.3, 0.3);
-
-    // Right chimney cluster — two thick chimneys, different heights
-    this.part(new THREE.CylinderGeometry(0.25, 0.3, 1.6, 6), rustMetal, 1.0, 3.0, 0.3);
-    this.part(new THREE.CylinderGeometry(0.2, 0.25, 1.2, 6), rustMetal, 1.4, 2.8, 0.1);
-    // Smoke cap on chimney
-    this.part(new THREE.CylinderGeometry(0.35, 0.25, 0.15, 6), rustMetal, 1.0, 3.85, 0.3);
-
-    // Back extension — a lopsided room hanging off the back
-    tbox(1.8, 1.2, 1.4, brickWall, -0.3, 1.2, -1.5, 0.05, 0, -0.04);
-    // Small back chimney
-    this.part(new THREE.CylinderGeometry(0.15, 0.18, 0.8, 5), rustMetal, -0.6, 2.2, -1.8);
-
-    // Walkway/balcony — left side, with railing
-    tbox(0.7, 0.12, 1.8, iron, -1.7, 1.6, 0.0, 0, 0, 0.03);
-    for (const dz of [-0.7, -0.2, 0.3, 0.8]) this.part(new THREE.BoxGeometry(0.06, 0.35, 0.06), iron, -1.7, 1.85, dz);
-
-    // Small windowed room on the right — like a bumped-out bay window
-    tbox(0.8, 0.9, 0.7, woodBeam, 1.65, 1.5, 0.4, 0, 0.1, 0);
-
-    // ============================================================
-    //  FACE — big, menacing, movie-accurate
-    // ============================================================
-
-    // EYES — large round glowing discs with dark rims
-    // Left eye: torus rim + glowing disc
-    const eyeY = 2.3, eyeZ = 1.25, eyeSpacing = 0.55;
+    // ---- OBSERVATION WINDOWS (eyes) ----
+    const eyeY = 1.8, eyeZ = 1.55, eyeSpacing = 0.55;
     for (const side of [-1, 1]) {
       const ex = side * eyeSpacing;
-      // Eye rim (torus)
-      const rimMesh = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.08, 8, 16), eyeRim);
-      rimMesh.position.set(ex, eyeY, eyeZ); rimMesh.castShadow = true; this.root.add(rimMesh);
-      // Eye glow (disc)
-      const disc = new THREE.Mesh(new THREE.CircleGeometry(0.42, 16), eyeGlow);
-      disc.position.set(ex, eyeY, eyeZ + 0.01); this.root.add(disc);
+      // Outer iron rim
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.06, 8, 12), M.darkIron);
+      rim.position.set(ex, eyeY, eyeZ); rim.castShadow = true; this.root.add(rim);
+      // Glass disc
+      const glass = new THREE.Mesh(new THREE.CircleGeometry(0.28, 12), M.darkGlass);
+      glass.position.set(ex, eyeY, eyeZ + 0.01); this.root.add(glass);
     }
-    // Angry eyebrows — thick slanted bars above each eye
-    const browL = tbox(0.5, 0.12, 0.22, iron, -eyeSpacing, eyeY + 0.42, eyeZ, 0, 0, 0.18);
-    const browR = tbox(0.5, 0.12, 0.22, iron,  eyeSpacing, eyeY + 0.42, eyeZ, 0, 0, -0.18);
 
-    // NOSE — triangular protruding wedge
-    const noseG = new THREE.ConeGeometry(0.22, 0.65, 4);
-    const noseM = new THREE.Mesh(noseG, stoneWall);
-    noseM.position.set(0, eyeY - 0.35, eyeZ + 0.35);
-    noseM.rotation.x = -0.25; noseM.rotation.y = Math.PI / 4;
-    noseM.castShadow = true; this.root.add(noseM);
-
-    // MOUTH — wide jagged grin with teeth
-    const mouthY = 1.2, mouthZ = 1.3;
-    // Mouth opening (dark recessed area)
-    tbox(1.8, 0.6, 0.2, doorMat, 0, mouthY, mouthZ);
-    // Upper teeth — jagged row of pointed blocks
+    // ---- MOUTH — steel teeth entrance ----
+    const mouthY = 0.8, mouthZ = 1.65;
+    // Dark interior
+    this._part(this.root, new THREE.BoxGeometry(1.4, 0.5, 0.3), M.darkInterior, 0, mouthY, mouthZ);
+    // Upper teeth — jagged steel
     for (let i = 0; i < 7; i++) {
-      const tx = -0.7 + i * 0.23;
-      const th = 0.12 + (i % 2) * 0.08;  // alternating heights
-      this.part(new THREE.BoxGeometry(0.16, th * 1.3, 0.18), toothMat, tx, mouthY + 0.35 - th * 0.5, mouthZ + 0.05);
+      const tx = -0.55 + i * 0.18;
+      const th = 0.08 + (i % 2) * 0.06;
+      this._part(this.root, new THREE.BoxGeometry(0.1, th, 0.12), M.steel, tx, mouthY + 0.28, mouthZ + 0.05);
     }
     // Lower teeth
     for (let i = 0; i < 6; i++) {
-      const tx = -0.55 + i * 0.24;
-      const th = 0.1 + ((i + 1) % 2) * 0.07;
-      this.part(new THREE.BoxGeometry(0.13, th, 0.13), toothMat, tx, mouthY - 0.35 + th * 0.5, mouthZ + 0.05);
+      const tx = -0.42 + i * 0.18;
+      const th = 0.07 + ((i + 1) % 2) * 0.05;
+      this._part(this.root, new THREE.BoxGeometry(0.09, th, 0.1), M.steel, tx, mouthY - 0.28, mouthZ + 0.05);
     }
 
-    // ============================================================
-    //  SIDE DECORATIONS — big wheel, pipes, gears, crane
-    // ============================================================
-
-    // Large decorative wheel/fan on the RIGHT side
-    const wheelG = new THREE.Group();
-    const bigRim = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.1, 8, 20), rustMetal);
-    wheelG.add(bigRim);
-    // Hub
-    wheelG.add(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.25, 8), rustMetal));
-    // 8 spokes
-    for (let i = 0; i < 8; i++) {
-      const spoke = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.06, 0.06), pipeMat);
-      spoke.rotation.z = (i / 8) * Math.PI; wheelG.add(spoke);
-    }
-    wheelG.position.set(1.8, 1.8, -0.3);
-    wheelG.rotation.y = Math.PI / 2;
-    this.root.add(wheelG);
-    this._sideWheel = wheelG;  // store for animation
-
-    // Pipes winding around the body
-    const pipePts = [
-      [1.3, 0.5, 0.8, 1.3, 2.0, 0.8],   // vertical right-front
-      [-1.3, 0.3, 0.5, -1.3, 1.8, 0.5],  // vertical left-front
-      [0.8, 2.5, 0.8, 0.8, 2.5, -1.0],   // horizontal on second floor
-      [-0.5, 3.2, 0.3, -0.5, 3.2, -0.8], // horizontal on tower
-    ];
-    for (const [x1, y1, z1, x2, y2, z2] of pipePts) {
-      const dx = x2 - x1, dy = y2 - y1, dz = z2 - z1;
-      const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, len, 6), pipeMat);
-      pipe.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2);
-      // orient along the direction
-      const dir = V3(dx, dy, dz).normalize();
-      pipe.quaternion.setFromUnitVectors(V3(0, 1, 0), dir);
-      pipe.castShadow = true; this.root.add(pipe);
-    }
-
-    // Small gear decorations (torus as gear ring)
-    for (const [gx, gy, gz, r] of [[-1.0, 2.8, 0.8, 0.25], [1.5, 2.6, -0.6, 0.2], [0.2, 3.5, 0.5, 0.18]]) {
-      const gear = new THREE.Mesh(new THREE.TorusGeometry(r, 0.03, 6, 12), pipeMat);
-      gear.position.set(gx, gy, gz); gear.rotation.x = Math.random() * 0.5;
-      gear.castShadow = true; this.root.add(gear);
-    }
-
-    // Crane/arm extending from the top-left
-    const armBase = this.part(new THREE.BoxGeometry(0.3, 0.3, 0.3), rustMetal, -1.2, 3.8, 0.0);
-    const arm1 = this.part(new THREE.CylinderGeometry(0.05, 0.05, 2.0, 6), pipeMat, -1.2, 4.8, 0.0);
-    arm1.rotation.z = 0.4;
-    const arm2 = this.part(new THREE.CylinderGeometry(0.04, 0.04, 1.2, 6), pipeMat, -2.0, 5.4, 0.0);
-    arm2.rotation.z = -0.6;
-    // Dangling hook/chain
-    this.part(new THREE.CylinderGeometry(0.02, 0.02, 0.6, 4), pipeMat, -2.5, 5.0, 0.0);
-
-    // ============================================================
-    //  SIDE & BACK WINDOWS — warm glow
-    // ============================================================
+    // ---- SIDE PIPES & CANNONS ----
     for (const side of [-1, 1]) {
-      for (const [dy, dz] of [[0.5, 0.3], [0.5, -0.5], [1.5, 0.0], [2.3, -0.1]]) {
-        this.part(new THREE.BoxGeometry(0.1, 0.28, 0.22), warmLight, side * 1.45, 0.7 + dy, dz);
+      // Curved steam pipe
+      const pipe = this._part(this.root, new THREE.CylinderGeometry(0.08, 0.08, 1.8, 6), M.darkIron, side * 1.3, 1.2, 0.3);
+      pipe.rotation.z = side * 0.3;
+      // Small cannon
+      const cannon = this._part(this.root, new THREE.CylinderGeometry(0.1, 0.12, 0.6, 6), M.darkIron, side * 1.5, 1.6, 0.8);
+      cannon.rotation.x = -0.2;
+    }
+    // Nose exhaust pipe
+    this._part(this.root, new THREE.CylinderGeometry(0.1, 0.12, 0.5, 6), M.darkIron, 0, 1.4, 1.9);
+
+    // ---- MIDDLE: house modules ----
+    // Main hall
+    const hall = this._part(this.root, new THREE.BoxGeometry(2.0, 1.4, 1.8), M.oldWood, 0.1, 2.4, -0.2);
+    hall.rotation.z = 0.02;
+    // Roof
+    const roof1 = this._part(this.root, new THREE.ConeGeometry(1.5, 0.8, 4), M.roofTile, 0.1, 3.4, -0.2);
+    roof1.rotation.y = Math.PI / 4;
+    // Second house (offset right)
+    const hall2 = this._part(this.root, new THREE.BoxGeometry(1.4, 1.0, 1.2), M.oldWood, 0.6, 2.8, -0.5);
+    hall2.rotation.z = -0.03;
+    const roof2 = this._part(this.root, new THREE.ConeGeometry(1.1, 0.6, 4), M.roofTile, 0.6, 3.5, -0.5);
+    roof2.rotation.y = Math.PI / 4 + 0.2;
+    // Third house (left, smaller)
+    this._part(this.root, new THREE.BoxGeometry(1.0, 0.8, 1.0), M.oldWood, -0.7, 2.6, -0.4);
+    const roof3 = this._part(this.root, new THREE.ConeGeometry(0.8, 0.5, 4), M.roofTile, -0.7, 3.2, -0.4);
+    roof3.rotation.y = Math.PI / 4 - 0.15;
+
+    // Iron stairs / balcony
+    this._part(this.root, new THREE.BoxGeometry(0.5, 0.1, 1.4), M.darkIron, -1.4, 1.8, 0.0);
+    for (const dz of [-0.5, 0, 0.5]) this._part(this.root, new THREE.BoxGeometry(0.05, 0.3, 0.05), M.darkIron, -1.4, 2.0, dz);
+
+    // Patched steel plates with chains
+    this._part(this.root, new THREE.BoxGeometry(0.6, 0.4, 0.08), M.rustIron, 1.3, 2.0, 0.9);
+    this._part(this.root, new THREE.BoxGeometry(0.5, 0.3, 0.08), M.rustIron, -1.1, 2.5, 0.7);
+
+    // ---- SIDE GEARS (big, visible, rotate) ----
+    this._sideGears = [];
+    for (const side of [-1, 1]) {
+      const gearGroup = new THREE.Group();
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.08, 8, 20), M.gearIron);
+      gearGroup.add(rim);
+      // Hub
+      gearGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.2, 8), M.darkIron));
+      // 8 spokes
+      for (let i = 0; i < 8; i++) {
+        const spoke = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.05, 0.05), M.darkIron);
+        spoke.rotation.z = (i / 8) * Math.PI; gearGroup.add(spoke);
       }
-    }
-    for (const [dx, dy] of [[-0.4, 0.8], [0.4, 0.8], [0, 1.8], [-0.7, 1.2]]) {
-      this.part(new THREE.BoxGeometry(0.28, 0.22, 0.1), warmLight, dx, dy, -1.3);
+      gearGroup.position.set(side * 1.6, 1.5, -0.3);
+      gearGroup.rotation.y = Math.PI / 2;
+      this.root.add(gearGroup);
+      this._sideGears.push(gearGroup);
     }
 
-    // ============================================================
-    //  TRAILING SECTION (abdomen — boiler room)
-    // ============================================================
+    // ---- TOP: chimneys ----
+    this._chimneys = [];
+    const chimneyPositions = [
+      { x: -0.6, y: 3.6, z: 0.2, r: 0.15, h: 1.2 },
+      { x: 0.5, y: 3.4, z: -0.1, r: 0.12, h: 1.0 },
+      { x: 0.9, y: 3.2, z: 0.3, r: 0.1, h: 0.8 },
+      { x: -0.3, y: 3.8, z: -0.4, r: 0.18, h: 1.4 },
+    ];
+    for (const ch of chimneyPositions) {
+      const chimney = this._part(this.root, new THREE.CylinderGeometry(ch.r * 0.8, ch.r, ch.h, 6), M.rustIron, ch.x, ch.y, ch.z);
+      // Smoke cap
+      this._part(this.root, new THREE.CylinderGeometry(ch.r * 1.3, ch.r * 0.8, 0.1, 6), M.darkIron, ch.x, ch.y + ch.h * 0.5 + 0.05, ch.z);
+      this._chimneys.push({ mesh: chimney, pos: V3(ch.x, ch.y + ch.h * 0.5 + 0.1, ch.z) });
+    }
+
+    // Antenna / wire
+    this._part(this.root, new THREE.CylinderGeometry(0.02, 0.02, 1.5, 4), M.darkIron, 0.3, 4.2, -0.5);
+
+    // Wood barrel hanging from side
+    this._part(this.root, new THREE.CylinderGeometry(0.15, 0.15, 0.3, 8), M.oldWood, 1.5, 1.0, -0.8);
+
+    // ---- TRAILING: boiler / abdomen ----
     const py = this.PEDICEL.y, pz = this.PEDICEL.z;
-    this.body = this.partOn(this.abdomen, new THREE.BoxGeometry(2.6, 1.8, 2.4), rustMetal, 0, 0.0 - py, -1.8 - pz);
-    // Furnace slit
-    this.partOn(this.abdomen, new THREE.BoxGeometry(2.2, 0.18, 0.12), warmLight, 0, -0.1 - py, -0.65 - pz);
+    this.body = this._part(this.abdomen, new THREE.BoxGeometry(2.2, 1.5, 2.0), M.rustIron, 0, 0.0 - py, -1.6 - pz);
+    // Furnace slit (glowing)
+    this._part(this.abdomen, new THREE.BoxGeometry(1.8, 0.15, 0.1), M.windowGlow, 0, -0.05 - py, -0.6 - pz);
     // Rear chimney
-    this.partOn(this.abdomen, new THREE.CylinderGeometry(0.2, 0.25, 0.9, 6), rustMetal, 0.6, 1.0 - py, -2.4 - pz);
-    this.partOn(this.abdomen, new THREE.CylinderGeometry(0.15, 0.18, 0.6, 5), rustMetal, -0.4, 0.8 - py, -2.6 - pz);
+    this._part(this.abdomen, new THREE.CylinderGeometry(0.12, 0.15, 0.7, 6), M.rustIron, 0.4, 0.8 - py, -2.2 - pz);
     // Connecting pipes
-    this.partOn(this.abdomen, new THREE.CylinderGeometry(0.07, 0.07, 1.2, 6), pipeMat, -0.6, 0.2 - py, -0.5 - pz);
-    this.partOn(this.abdomen, new THREE.CylinderGeometry(0.07, 0.07, 1.2, 6), pipeMat,  0.6, 0.2 - py, -0.5 - pz);
-    // A small gear on the back
-    const backGear = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.04, 6, 12), pipeMat);
-    backGear.position.set(0, 0.5 - py, -2.95 - pz); this.abdomen.add(backGear);
+    this._part(this.abdomen, new THREE.CylinderGeometry(0.06, 0.06, 1.0, 6), M.darkIron, -0.4, 0.2 - py, -0.4 - pz);
+    this._part(this.abdomen, new THREE.CylinderGeometry(0.06, 0.06, 1.0, 6), M.darkIron, 0.4, 0.2 - py, -0.4 - pz);
 
-    // Calcifer fire glow — warm red point light inside the castle
+    // Calcifer glow
     this._calciferLight = new THREE.PointLight(0xE85030, 2, 8);
     this._calciferLight.position.set(0, 0.8, 0);
     this.root.add(this._calciferLight);
   }
 
-  buildLegs() {
-    const G = GHIBLI;
-    const fem = toonMat(G.castleRust);
-    const tib = toonMat(G.castleIron);
-    const jnt = toonMat(G.eyeRim);
-    const wheelMat = toonMat(G.castleRust);
-    const spokeMat = toonMat(G.castleIron);
-    const axleMat  = toonMat(G.eyeRim);
+  /* ================================================================
+     LEGS — armor sleeves + 3-toe claws with open/close animation
+     ================================================================ */
+  _buildLegs() {
+    const M = getMaterials();
     const spec = [
-      { az: 0.50, off: 0.50 }, { az: 1.12, off: 0.33 }, { az: 1.78, off: 0.17 }, { az: 2.42, off: 0.00 },
-      { az: -2.42, off: 0.50 }, { az: -1.78, off: 0.67 }, { az: -1.12, off: 0.83 }, { az: -0.50, off: 0.00 },
+      { az: 0.50, off: 0.50, scale: 1.15 },
+      { az: 1.12, off: 0.33, scale: 1.1 },
+      { az: 1.78, off: 0.17, scale: 1.05 },
+      { az: 2.42, off: 0.00, scale: 1.0 },
+      { az: -2.42, off: 0.50, scale: 0.95 },
+      { az: -1.78, off: 0.67, scale: 0.95 },
+      { az: -1.12, off: 0.83, scale: 0.9 },
+      { az: -0.50, off: 0.00, scale: 0.9 },
     ];
     const rHip = 1.35, rHome = 3.8; this.legs = [];
     for (const s of spec) {
@@ -300,28 +288,58 @@ export class Spider {
       const L = {
         hip: V3(ox * rHip, 0.0, oz * rHip), home, off: s.off, pole: V3(ox * 0.85, 1.45, oz * 0.85).normalize(),
         restAz: Math.atan2(home.x, home.z), restR: rHome, rMin: rHome * 0.78, rMax: rHome * 1.2, ccw: 0.3, cw: 0.3,
-        femurM: new THREE.Mesh(GEO.cyl, fem), tibiaM: new THREE.Mesh(GEO.cyl, tib), tarsusM: null,
-        kneeM: new THREE.Mesh(GEO.joint, jnt), hipM: new THREE.Mesh(GEO.joint, jnt),
+        scale: s.scale,
         plant: V3(), from: V3(), to: V3(), surfN: Y_UP.clone(), toN: Y_UP.clone(), t: 1, stepping: false,
-        wheelAngle: 0,
+        wheelAngle: 0, clawAngle: 0, // claw open/close
       };
-      // build wheel assembly: torus rim + 6 spokes + axle
-      const WR = 0.42, tubeR = 0.07;
-      const wheelG = new THREE.Group();
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(WR, tubeR, 8, 16), wheelMat); rim.castShadow = true;
-      wheelG.add(rim);
-      const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, WR * 2.2, 6), axleMat);
-      axle.rotation.z = Math.PI / 2; axle.castShadow = true; wheelG.add(axle);
-      for (let si = 0; si < 6; si++) {
-        const ang = (si / 6) * Math.PI;
-        const spoke = new THREE.Mesh(new THREE.BoxGeometry(WR * 1.7, 0.04, 0.04), spokeMat);
-        spoke.rotation.z = ang; spoke.castShadow = true; wheelG.add(spoke);
+
+      // Build leg geometry groups
+      const sc = s.scale;
+      const armR = this.legRad * 1.6 * sc; // armor radius
+
+      // Femur group (upper leg with armor sleeve)
+      const femGroup = new THREE.Group();
+      femGroup.add(new THREE.Mesh(GEO.cyl, M.legArmor)); // armor cylinder
+      femGroup.add(new THREE.Mesh(GEO.joint, M.darkIron)); // hip joint sphere
+      femGroup.children[0].scale.set(armR, 1, armR);
+      femGroup.children[1].scale.setScalar(armR * 1.2);
+      scene.add(femGroup);
+
+      // Tibia group (lower leg with armor)
+      const tibGroup = new THREE.Group();
+      tibGroup.add(new THREE.Mesh(GEO.cyl, M.legArmor));
+      tibGroup.add(new THREE.Mesh(GEO.joint, M.darkIron)); // knee joint
+      tibGroup.children[0].scale.set(armR * 0.85, 1, armR * 0.85);
+      tibGroup.children[1].scale.setScalar(armR * 1.1);
+      scene.add(tibGroup);
+
+      // 3-toe claw group
+      const clawGroup = new THREE.Group();
+      const clawR = 0.06 * sc;
+      const clawLen = 0.4 * sc;
+      for (let ti = 0; ti < 3; ti++) {
+        const toeGroup = new THREE.Group();
+        // Toe segment 1
+        const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(clawR, clawR * 0.7, clawLen, 5), M.clawSteel);
+        seg1.position.y = -clawLen * 0.5;
+        toeGroup.add(seg1);
+        // Toe tip (curved claw)
+        const tip = new THREE.Mesh(new THREE.ConeGeometry(clawR * 0.6, clawLen * 0.4, 4), M.clawSteel);
+        tip.position.y = -clawLen;
+        tip.rotation.x = 0.3; // slight curl
+        toeGroup.add(tip);
+        // Angle around Y axis: 0°, 120°, 240°
+        toeGroup.rotation.y = (ti / 3) * Math.PI * 2;
+        toeGroup.rotation.x = 0.4; // default spread angle
+        clawGroup.add(toeGroup);
       }
-      L.tarsusM = wheelG;
+      scene.add(clawGroup);
+
+      L.femGroup = femGroup; L.tibGroup = tibGroup; L.clawGroup = clawGroup;
+      L.armR = armR;
+
       L.restAxisL = home.clone().sub(L.hip).normalize();
-      L.femurM.castShadow = L.tibiaM.castShadow = L.kneeM.castShadow = L.hipM.castShadow = true;
-      L.kneeM.scale.setScalar(0.28); L.hipM.scale.setScalar(0.34);
-      this.scene.add(L.femurM, L.tibiaM, L.tarsusM, L.kneeM, L.hipM); this.legs.push(L);
+      this.legs.push(L);
     }
     const margin = 0.06;
     for (let i = 0; i < 8; i++) {
@@ -338,13 +356,14 @@ export class Spider {
   }
   setRoot() {
     this.root.position.copy(this.bodyOrigin); this.root.quaternion.copy(this.quat);
-    const br = 1 + Math.sin(performance.now() * 0.002) * 0.008;
+    const br = 1 + Math.sin(performance.now() * 0.002) * 0.006;
     const f = 1 + clamp01(this.fill || 0) * 0.3;
     this.body.scale.set(1.0 * f, 0.9 * br * f, 1.0 * f);
-    // spin the decorative side wheel
-    if (this._sideWheel) { this._wheelSpin = (this._wheelSpin || 0) + this.curSpeed * 0.04; this._sideWheel.rotation.y = Math.PI / 2 + this._wheelSpin; }
+    // Gears rotate
+    this._sideGearAngle += this.curSpeed * 0.06;
+    if (this._sideGears) for (const g of this._sideGears) g.rotation.y = Math.PI / 2 + this._sideGearAngle;
     // Calcifer flicker
-    if (this._calciferLight) { this._calciferLight.intensity = 1.8 + Math.sin(performance.now() * 0.01) * 0.4 + Math.sin(performance.now() * 0.023) * 0.2; }
+    if (this._calciferLight) this._calciferLight.intensity = 1.8 + Math.sin(performance.now() * 0.01) * 0.4;
     this.root.updateMatrixWorld(true);
   }
   _castFoothold(pW) {
@@ -372,149 +391,9 @@ export class Spider {
     this.pos.set(0, terrainH(0, 0), 0); this.bodyOrigin.copy(this.pos).addScaledVector(this.up, this.rideClear); this.rebuild(); this.setRoot();
     for (const L of this.legs) { const hw = this.root.localToWorld(L.home.clone()); const g = this.footProbe(hw); L.plant.copy(g.point); L.surfN.copy(g.n); L.toN.copy(g.n); L.from.copy(g.point); L.to.copy(g.point); L.t = 1; L.stepping = false; }
   }
-  toggleFlight() {
-    this.flying = !this.flying;
-    if (this.flying) {
-      // take off: give upward velocity
-      this.airborne = true;
-      this.vel.copy(this.up).multiplyScalar(12);
-      this.flyVel.set(0, 0, 0);
-    } else {
-      // landing will happen naturally when close to ground
-    }
-    return this.flying;
-  }
-  updateFlight(dt, inp) {
-    // smooth fly transition (0=ground, 1=full flight)
-    this.flyT = lerp(this.flyT, this.flying ? 1 : 0, 1 - Math.pow(0.03, dt));
-    if (this.flyT < 0.01 && !this.flying) { this.flying = false; this.airborne = false; return; }
-
-    const flyGravity = -4; // reduced gravity in flight
-    const flyLift = 18;    // upward thrust
-    const flyForward = 14; // forward acceleration
-    const flyTurnRate = 2.2;
-    const maxFlySpeed = 18;
-    const drag = 0.96;
-
-    // input → flight direction
-    const camF = V3(-Math.sin(inp.camYaw), 0, -Math.cos(inp.camYaw));
-    const camR = V3(-camF.z, 0, camF.x);
-    const intent = camF.multiplyScalar(inp.iy).addScaledVector(camR, inp.ix);
-
-    // forward thrust
-    if (intent.lengthSq() > 0.01) {
-      const dir = intent.normalize();
-      this.flyVel.addScaledVector(dir, flyForward * dt);
-      // turn castle to face movement direction
-      const flatDir = V3(dir.x, 0, dir.z);
-      if (flatDir.lengthSq() > 0.01) {
-        const fd = flatDir.normalize();
-        if (fd.lengthSq() > 0.01 && this.fwd.lengthSq() > 0.01) {
-          const turn = clamp(signedAngle(this.fwd, fd, Y_UP) || 0, -flyTurnRate * dt, flyTurnRate * dt);
-          this.fwd.applyAxisAngle(Y_UP, turn);
-        }
-      }
-    }
-
-    // lift: always maintain some upward force when flying
-    this.flyVel.y += (flyLift + flyGravity) * dt;
-    // if going up (W pressed), extra lift
-    if (inp.iy > 0.1) this.flyVel.y += 6 * inp.iy * dt;
-    // if going down (S pressed), reduce lift
-    if (inp.iy < -0.1) this.flyVel.y += 4 * inp.iy * dt;
-
-    // sprint = boost
-    const speedMul = inp.sprint ? 1.6 : 1.0;
-
-    // drag
-    this.flyVel.multiplyScalar(Math.pow(drag, dt * 60));
-
-    // clamp speed
-    const spd = this.flyVel.length();
-    if (spd > maxFlySpeed * speedMul) this.flyVel.multiplyScalar(maxFlySpeed * speedMul / spd);
-
-    // apply velocity
-    this.pos.addScaledVector(this.flyVel, dt);
-    this.curSpeed = spd;
-
-    // tilt castle based on velocity (banking) — with NaN safety
-    this.up.lerp(Y_UP, 1 - Math.pow(0.1, dt));
-    if (!isFinite(this.up.x) || this.up.lengthSq() < 1e-6) this.up.copy(Y_UP);
-    // add slight forward tilt when moving fast
-    if (spd > 2) {
-      const tiltAxis = this.fwd.clone().cross(Y_UP);
-      if (tiltAxis.lengthSq() > 1e-6) {
-        tiltAxis.normalize();
-        const tiltAngle = clamp(spd * 0.015, 0, 0.3);
-        const tiltQ = new THREE.Quaternion().setFromAxisAngle(tiltAxis, tiltAngle);
-        this.up.applyQuaternion(tiltQ).normalize();
-      }
-    }
-    if (!isFinite(this.up.x) || this.up.lengthSq() < 1e-6) this.up.copy(Y_UP);
-
-    // boundary
-    this.pos.x = clamp(this.pos.x, -FIELD / 2 + 5, FIELD / 2 - 5);
-    this.pos.z = clamp(this.pos.z, -FIELD / 2 + 5, FIELD / 2 - 5);
-    this.pos.y = clamp(this.pos.y, 5, 120);
-
-    // check if we should land (flying=false and close to ground)
-    if (!this.flying && this.flyT < 0.15) {
-      const tH = terrainH(this.pos.x, this.pos.z);
-      if (this.pos.y - tH < this.rideClear + 2) {
-        this.land(V3(this.pos.x, tH, this.pos.z), terrainN(this.pos.x, this.pos.z));
-        this.flyT = 0;
-        return;
-      }
-    }
-
-    this.heading = Math.atan2(this.fwd.x, this.fwd.z);
-    this.rebuild();
-    this.bodyOrigin.copy(this.pos);
-    this._updateAbdomen(dt);
-    this.setRoot();
-
-    // fold legs during flight
-    this._poseFlightLegs();
-
-    // update smoke/steam from chimneys
-    for (const aa of this.antennae) aa.step(dt);
-
-    // emit flight particles
-    if (this.world && spd > 3) {
-      const tailPos = this.abdomen.localToWorld(V3(0, 0.5 - this.PEDICEL.y, -2.5 - this.PEDICEL.z));
-      this.world.puff(tailPos);
-    }
-  }
-  _poseFlightLegs() {
-    // fold legs outward and slightly back during flight (like wings)
-    const t = this.flyT;
-    for (const L of this.legs) {
-      if (L.lost) continue;
-      const hipW = this.root.localToWorld(L.hip.clone());
-      const out = hipW.clone().sub(this.bodyOrigin);
-      out.addScaledVector(this.up, -out.dot(this.up));
-      if (out.lengthSq() < 1e-4) out.copy(this.fwd);
-      out.normalize();
-
-      // spread outward more during flight
-      const spread = lerp(1, 1.8, t);
-      const droop = lerp(0.5, 0.15, t); // less droop in flight
-      const knee = hipW.clone().addScaledVector(out, this.femur * spread).addScaledVector(this.up, -this.femur * droop);
-      const ankle = knee.clone().addScaledVector(out, this.tibia * 0.3).addScaledVector(this.up, -this.tibia * 0.6);
-      const foot = ankle.clone().addScaledVector(this.up, -this.tarsus * 0.5);
-
-      L.plant.copy(foot);
-      orientCyl(L.femurM, hipW, knee, this.legRad);
-      orientCyl(L.tibiaM, knee, ankle, this.legRad * 0.8);
-      this._orientWheel(L, ankle, foot);
-      L.kneeM.position.copy(knee);
-      L.hipM.position.copy(hipW);
-    }
-  }
   teleport(x, z, headingVec) {
     this.up.copy(Y_UP);
-    if (headingVec) { this.fwd.copy(headingVec); this.fwd.y = 0; if (this.fwd.lengthSq() < 1e-6) this.fwd.set(0, 0, 1); this.fwd.normalize(); }
-    else this.fwd.set(0, 0, 1);
+    if (headingVec) { this.fwd.copy(headingVec); this.fwd.y = 0; if (this.fwd.lengthSq() < 1e-6) this.fwd.set(0, 0, 1); this.fwd.normalize(); } else this.fwd.set(0, 0, 1);
     this.right.set(1, 0, 0); this.curSpeed = 0; this.activity = 0; this.gaitPhase = 0; this.moveDir.copy(this.fwd);
     const y = terrainH(x, z); this.pos.set(x, y, z);
     const g = castAll(V3(x, y + 80, z), DOWN, 120); if (g) this.pos.copy(g.point);
@@ -534,6 +413,71 @@ export class Spider {
     this._abQ.slerp(_qT, 1 - Math.pow(0.02, Math.min(dt, 0.05)));
     this.abdomen.quaternion.copy(this._abQ);
   }
+
+  // ---- flight mode ----
+  toggleFlight() {
+    this.flying = !this.flying;
+    if (this.flying) { this.airborne = true; this.vel.copy(this.up).multiplyScalar(12); this.flyVel.set(0, 0, 0); }
+    return this.flying;
+  }
+  updateFlight(dt, inp) {
+    this.flyT = lerp(this.flyT, this.flying ? 1 : 0, 1 - Math.pow(0.03, dt));
+    if (this.flyT < 0.01 && !this.flying) { this.flying = false; this.airborne = false; return; }
+    const camF = V3(-Math.sin(inp.camYaw), 0, -Math.cos(inp.camYaw));
+    const camR = V3(-camF.z, 0, camF.x);
+    const intent = camF.multiplyScalar(inp.iy).addScaledVector(camR, inp.ix);
+    if (intent.lengthSq() > 0.01) {
+      const dir = intent.normalize(); this.flyVel.addScaledVector(dir, 14 * dt);
+      const flatDir = V3(dir.x, 0, dir.z);
+      if (flatDir.lengthSq() > 0.01 && this.fwd.lengthSq() > 0.01) {
+        const turn = clamp(signedAngle(this.fwd, flatDir.normalize(), Y_UP) || 0, -2.2 * dt, 2.2 * dt);
+        this.fwd.applyAxisAngle(Y_UP, turn);
+      }
+    }
+    this.flyVel.y += 14 * dt;
+    if (inp.iy > 0.1) this.flyVel.y += 6 * inp.iy * dt;
+    if (inp.iy < -0.1) this.flyVel.y += 4 * inp.iy * dt;
+    const speedMul = inp.sprint ? 1.6 : 1.0;
+    this.flyVel.multiplyScalar(Math.pow(0.96, dt * 60));
+    const spd = this.flyVel.length();
+    if (spd > 18 * speedMul) this.flyVel.multiplyScalar(18 * speedMul / spd);
+    this.pos.addScaledVector(this.flyVel, dt); this.curSpeed = spd;
+    this.up.lerp(Y_UP, 1 - Math.pow(0.1, dt));
+    if (!isFinite(this.up.x) || this.up.lengthSq() < 1e-6) this.up.copy(Y_UP);
+    if (spd > 2) {
+      const tiltAxis = this.fwd.clone().cross(Y_UP);
+      if (tiltAxis.lengthSq() > 1e-6) { tiltAxis.normalize(); const tiltQ = new THREE.Quaternion().setFromAxisAngle(tiltAxis, clamp(spd * 0.015, 0, 0.3)); this.up.applyQuaternion(tiltQ).normalize(); }
+    }
+    if (!isFinite(this.up.x) || this.up.lengthSq() < 1e-6) this.up.copy(Y_UP);
+    this.pos.x = clamp(this.pos.x, -FIELD / 2 + 5, FIELD / 2 - 5);
+    this.pos.z = clamp(this.pos.z, -FIELD / 2 + 5, FIELD / 2 - 5);
+    this.pos.y = clamp(this.pos.y, 5, 120);
+    if (!this.flying && this.flyT < 0.15) {
+      const tH = terrainH(this.pos.x, this.pos.z);
+      if (this.pos.y - tH < this.rideClear + 2) { this.land(V3(this.pos.x, tH, this.pos.z), terrainN(this.pos.x, this.pos.z)); this.flyT = 0; return; }
+    }
+    this.heading = Math.atan2(this.fwd.x, this.fwd.z); this.rebuild(); this.bodyOrigin.copy(this.pos); this._updateAbdomen(dt); this.setRoot();
+    this._poseFlightLegs();
+    for (const aa of this.antennae) aa.step(dt);
+    if (spd > 3) { const tailPos = this.abdomen.localToWorld(V3(0, 0.5 - this.PEDICEL.y, -2.5 - this.PEDICEL.z)); this._steamChimney.emit(tailPos, V3(0, 1, 0), 2, 2); }
+    this._steamChimney.update(dt); this._steamJoint.update(dt);
+  }
+  _poseFlightLegs() {
+    const t = this.flyT;
+    for (const L of this.legs) {
+      const hipW = this.root.localToWorld(L.hip.clone());
+      const out = hipW.clone().sub(this.bodyOrigin); out.addScaledVector(this.up, -out.dot(this.up)); if (out.lengthSq() < 1e-4) out.copy(this.fwd); out.normalize();
+      const spread = lerp(1, 1.8, t), droop = lerp(0.5, 0.15, t);
+      const knee = hipW.clone().addScaledVector(out, this.femur * spread).addScaledVector(this.up, -this.femur * droop);
+      const ankle = knee.clone().addScaledVector(out, this.tibia * 0.3).addScaledVector(this.up, -this.tibia * 0.6);
+      const foot = ankle.clone().addScaledVector(this.up, -this.tarsus * 0.5);
+      L.plant.copy(foot);
+      this._poseLegMeshes(L, hipW, knee, ankle, foot);
+      // Claws spread open in flight
+      L.clawAngle = lerp(L.clawAngle, 0.6, 1 - Math.pow(0.05, 0.016));
+      this._updateClaws(L, foot);
+    }
+  }
   pounce(dir, power = 1) {
     if (this.airborne) return; this.pos.copy(this.bodyOrigin);
     const d = dir ? dir.clone().normalize() : this.fwd.clone();
@@ -544,12 +488,15 @@ export class Spider {
     if (this.airborne) return; this.pos.copy(this.bodyOrigin);
     const moving = this.moveDir.lengthSq() > 0.04;
     const fwd = (moving ? this.moveDir : this.fwd).clone();
-    fwd.addScaledVector(this.up, -fwd.dot(this.up));
-    if (fwd.lengthSq() < 1e-5) fwd.copy(this.fwd); fwd.normalize();
-    const up = boost ? 8 : 10;
-    const fwdImpulse = (boost ? 17 : (moving ? 3 : 0)) + this.curSpeed * (boost ? 1.0 : 0.7);
+    fwd.addScaledVector(this.up, -fwd.dot(this.up)); if (fwd.lengthSq() < 1e-5) fwd.copy(this.fwd); fwd.normalize();
+    const up = boost ? 8 : 10, fwdImpulse = (boost ? 17 : (moving ? 3 : 0)) + this.curSpeed * (boost ? 1.0 : 0.7);
     this.vel.copy(this.up).multiplyScalar(up).addScaledVector(fwd, fwdImpulse);
     this.airborne = true; this.tether = null;
+    // Jump smoke burst
+    for (const ch of this._chimneys) {
+      const wp = this.root.localToWorld(ch.pos.clone());
+      this._steamChimney.emit(wp, V3(0, 1, 0), 4, 5);
+    }
   }
   attachTether(anchorPoint) {
     if (!this.airborne) this.pos.copy(this.bodyOrigin); this.airborne = true;
@@ -561,10 +508,12 @@ export class Spider {
     this.airborne = false; this.tether = null; this.vel.set(0, 0, 0);
     if (N) this.up.copy(N).normalize();
     this.pos.copy(P); this.bodyOrigin.copy(this.pos).addScaledVector(this.up, this.rideClear); this.rebuild(); this.setRoot();
-    for (const L of this.legs) { if (L.lost) continue; const hw = this.root.localToWorld(L.home.clone()); const g = this.footProbe(hw); L.plant.copy(g.point); L.surfN.copy(g.n); L.toN.copy(g.n); L.from.copy(g.point); L.to.copy(g.point); L.t = 1; L.stepping = false; }
+    for (const L of this.legs) { const hw = this.root.localToWorld(L.home.clone()); const g = this.footProbe(hw); L.plant.copy(g.point); L.surfN.copy(g.n); L.toN.copy(g.n); L.from.copy(g.point); L.to.copy(g.point); L.t = 1; L.stepping = false; }
+    // Landing dust
+    this._dustLand.emit(P.clone(), V3(0, 1, 0), 3, 8);
   }
-  severLeg(i) { const L = this.legs[i]; if (!L || L.lost) return false; L.lost = true; this.legsLost++; for (const m of [L.femurM, L.tibiaM, L.tarsusM, L.kneeM, L.hipM]) m.visible = false; return true; }
-  regrowLeg(i) { const L = this.legs[i]; if (!L || !L.lost) return false; L.lost = false; this.legsLost--; for (const m of [L.femurM, L.tibiaM, L.tarsusM, L.kneeM, L.hipM]) m.visible = true; return true; }
+  severLeg(i) { const L = this.legs[i]; if (!L || L.lost) return false; L.lost = true; this.legsLost++; L.femGroup.visible = L.tibGroup.visible = L.clawGroup.visible = false; return true; }
+  regrowLeg(i) { const L = this.legs[i]; if (!L || !L.lost) return false; L.lost = false; this.legsLost--; L.femGroup.visible = L.tibGroup.visible = L.clawGroup.visible = true; return true; }
   updateAirborne(dt, inp) {
     if (dt <= 0) { this.bodyOrigin.copy(this.pos); this.rebuild(); this.setRoot(); return; }
     const G = 26; this.vel.y -= G * dt;
@@ -613,12 +562,12 @@ export class Spider {
       const knee = hipW.clone().addScaledVector(out, this.femur * 0.55).addScaledVector(down, this.femur * 0.5);
       const ankle = knee.clone().addScaledVector(down, this.tibia * 0.7).addScaledVector(out, -this.tibia * 0.2);
       const foot = ankle.clone().addScaledVector(down, this.tarsus);
-      L.plant.copy(foot); L._hipW = hipW; L._knee = knee; L._ankle = ankle; L._foot = foot;
-      orientCyl(L.femurM, hipW, knee, this.legRad); orientCyl(L.tibiaM, knee, ankle, this.legRad * 0.8);
-      this._orientWheel(L, ankle, foot);
-      L.kneeM.position.copy(knee); L.hipM.position.copy(hipW);
+      L.plant.copy(foot);
+      this._poseLegMeshes(L, hipW, knee, ankle, foot);
+      this._updateClaws(L, foot);
     }
   }
+
   update(dt, inp) {
     if (this.flying || this.flyT > 0.01) { this.updateFlight(dt, inp); return; }
     if (this.airborne) { this.updateAirborne(dt, inp); return; }
@@ -640,11 +589,7 @@ export class Spider {
       this.activity = this.curSpeed / this.baseSpeed;
       let feetC = null, feetN;
       { let cx = 0, cy = 0, cz = 0, wsum = 0, nx = 0, ny = 0, nz = 0;
-        for (let i = 0; i < 8; i++) {
-          const L = this.legs[i]; if (L.lost) continue; const A = L.plant, B = this.legs[(i + 1) % 8].plant;
-          nx += (A.y - B.y) * (A.z + B.z); ny += (A.z - B.z) * (A.x + B.x); nz += (A.x - B.x) * (A.y + B.y);
-          if (!L.stepping) { const homeW = this.root.localToWorld(L.home.clone()); const w = clamp01(1 - A.distanceTo(homeW) / (this.maxStride * 1.4)); cx += A.x * w; cy += A.y * w; cz += A.z * w; wsum += w; }
-        }
+        for (let i = 0; i < 8; i++) { const L = this.legs[i]; if (L.lost) continue; const A = L.plant, B = this.legs[(i + 1) % 8].plant; nx += (A.y - B.y) * (A.z + B.z); ny += (A.z - B.z) * (A.x + B.x); nz += (A.x - B.x) * (A.y + B.y); if (!L.stepping) { const homeW = this.root.localToWorld(L.home.clone()); const w = clamp01(1 - A.distanceTo(homeW) / (this.maxStride * 1.4)); cx += A.x * w; cy += A.y * w; cz += A.z * w; wsum += w; } }
         if (wsum > 1e-3) feetC = V3(cx / wsum, cy / wsum, cz / wsum);
         feetN = V3(nx, ny, nz); if (feetN.dot(this.up) < 0) feetN.negate(); if (feetN.lengthSq() < 1e-6) feetN.copy(this.up); feetN.normalize();
       }
@@ -655,14 +600,10 @@ export class Spider {
       if (this.curSpeed > 0.4) { const a = castAll(this.pos.clone().addScaledVector(this.up, 0.5), this.moveDir, this.bodyR + 1.4); if (a && a.n.dot(this.moveDir) < -0.2) aheadN = a.n.clone(); }
       let ridePt = g ? g.point.clone() : null;
       if (g && this.bodyConform && this.conformLift && feetC) { const rise = feetC.clone().sub(g.point).dot(this.up); const MAXLIFT = Math.max(2.2, this.stepH * 3 + 0.8); if (rise > 0) ridePt = g.point.clone().addScaledVector(this.up, Math.min(rise, MAXLIFT)); }
-      if (ridePt) { const d = ridePt.clone().sub(this.pos); const dl = d.length(); const cap = (this.curSpeed * 1.7 + 9) * dt; if (dl > cap) this.pos.addScaledVector(d.multiplyScalar(1 / dl), cap); else this.pos.copy(ridePt); }
-      else this.pos.y -= 9 * dt;
+      if (ridePt) { const d = ridePt.clone().sub(this.pos); const dl = d.length(); const cap = (this.curSpeed * 1.7 + 9) * dt; if (dl > cap) this.pos.addScaledVector(d.multiplyScalar(1 / dl), cap); else this.pos.copy(ridePt); } else this.pos.y -= 9 * dt;
       const tH = terrainH(this.pos.x, this.pos.z); if (this.pos.y < tH - 0.3) this.pos.y = tH - 0.3;
       this.pos.x = clamp(this.pos.x, -FIELD / 2 + 3, FIELD / 2 - 3); this.pos.z = clamp(this.pos.z, -FIELD / 2 + 3, FIELD / 2 - 3); this.pos.y = clamp(this.pos.y, -12, 46);
-      { const R = this.bodyR + this.legRad + 0.2; const push = V3(); let sidePen = 0; const p = this.pos.clone().addScaledVector(this.up, this.rideClear);
-        for (const c of colliders) { const cc = c.kind === 'sphere' ? c.c : c.p; if (p.distanceTo(cc) > R + c.br + 1) continue; const cl = clearance(p, c); const nu = cl.n.dot(this.up); if (cl.d < R && nu > -0.3 && nu < 0.7) { const amt = R - cl.d; push.addScaledVector(cl.n, amt); if (amt > sidePen) sidePen = amt; } }
-        if (sidePen > 1e-4) { push.addScaledVector(this.up, -push.dot(this.up)); let lift = sidePen; const back = push.dot(this.moveDir); if (back < 0) { push.addScaledVector(this.moveDir, -back); lift -= back; } push.addScaledVector(this.up, lift); const mag2 = Math.min(push.length(), 0.4); if (push.lengthSq() > 1e-9) this.pos.addScaledVector(push.normalize(), mag2); }
-      }
+      { const R = this.bodyR + this.legRad + 0.2; const push = V3(); let sidePen = 0; const p = this.pos.clone().addScaledVector(this.up, this.rideClear); for (const c of colliders) { const cc = c.kind === 'sphere' ? c.c : c.p; if (p.distanceTo(cc) > R + c.br + 1) continue; const cl = clearance(p, c); const nu = cl.n.dot(this.up); if (cl.d < R && nu > -0.3 && nu < 0.7) { const amt = R - cl.d; push.addScaledVector(cl.n, amt); if (amt > sidePen) sidePen = amt; } } if (sidePen > 1e-4) { push.addScaledVector(this.up, -push.dot(this.up)); let lift = sidePen; const back = push.dot(this.moveDir); if (back < 0) { push.addScaledVector(this.moveDir, -back); lift -= back; } push.addScaledVector(this.up, lift); const mag2 = Math.min(push.length(), 0.4); if (push.lengthSq() > 1e-9) this.pos.addScaledVector(push.normalize(), mag2); } }
       let surfN = g ? g.n.clone() : Y_UP.clone(); if (aheadN) surfN.multiplyScalar(0.35).addScaledVector(aheadN, 0.65).normalize();
       const fw = this.bodyConform ? this.conformTiltW : 0.2;
       const targetUp = surfN.multiplyScalar(1 - fw).addScaledVector(feetN, fw).normalize();
@@ -672,8 +613,44 @@ export class Spider {
     this.rebuild(); this.bodyOrigin.copy(this.pos).addScaledVector(this.up, this.rideClear);
     this.heading = Math.atan2(this.fwd.x, this.fwd.z); this._updateAbdomen(dt > 0 ? dt : 1e-4); this.setRoot();
     this.updateLegs(dt > 0 ? dt : 1e-4);
-    if (dt > 0) for (const a of this.antennae) a.step(dt);
+    // Chimney continuous smoke
+    if (dt > 0) {
+      const smokeRate = this.curSpeed > 0.5 ? (inp.sprint ? 3 : 1.5) : 0.5;
+      if (Math.random() < smokeRate * dt * 10) {
+        for (const ch of this._chimneys) {
+          const wp = this.root.localToWorld(ch.pos.clone());
+          this._steamChimney.emit(wp, V3(0, 1, 0), 1.5, 1);
+        }
+      }
+      this._steamChimney.update(dt); this._steamJoint.update(dt); this._dustLand.update(dt);
+    }
   }
+
+  _poseLegMeshes(L, hipW, knee, ankle, foot) {
+    const armR = L.armR;
+    orientCyl(L.femGroup.children[0], hipW, knee, armR);
+    L.femGroup.children[0].position.copy(hipW).add(knee).multiplyScalar(0.5);
+    L.femGroup.children[1].position.copy(hipW);
+    L.femGroup.children[1].scale.setScalar(armR * 1.2);
+    orientCyl(L.tibGroup.children[0], knee, ankle, armR * 0.85);
+    L.tibGroup.children[0].position.copy(knee).add(ankle).multiplyScalar(0.5);
+    L.tibGroup.children[1].position.copy(knee);
+    L.tibGroup.children[1].scale.setScalar(armR * 1.1);
+  }
+
+  _updateClaws(L, foot) {
+    // Position claw group at foot
+    L.clawGroup.position.copy(foot);
+    // Orient claws to point along leg direction (down-ish)
+    const down = this.up.clone().negate();
+    const q = new THREE.Quaternion().setFromUnitVectors(V3(0, -1, 0), down);
+    L.clawGroup.quaternion.copy(q);
+    // Animate toe spread: L.clawAngle drives open(0.6) / closed(0.1)
+    for (const toe of L.clawGroup.children) {
+      toe.rotation.x = L.clawAngle;
+    }
+  }
+
   updateLegs(dt) {
     const act = Math.max(this.activity || 0, 0.0001);
     const freq = this.baseFreq * act; if (act > 0.12) this.gaitPhase = frac((this.gaitPhase || 0) + dt * freq);
@@ -713,13 +690,27 @@ export class Spider {
       const head = castAll(_depP.copy(L.from).lerp(L.to, 0.5).addScaledVector(this.up, 0.2), this.up, lift + 0.6);
       if (head) lift = Math.min(lift, Math.max(0.2, head.t - 0.3));
       L.lift = lift;
+      // Claw opens when stepping starts
+      L.clawAngle = 0.5;
     }
     const upv = this.up;
     for (let i = 0; i < 8; i++) {
       const L = this.legs[i]; if (L.lost) continue;
       if (L.stepping) {
         L.t += dt / swingDur; const t = clamp01(L.t); L.plant.lerpVectors(L.from, L.to, smooth(t)); L.plant.addScaledVector(upv, (L.lift || this.stepH) * Math.sin(Math.PI * Math.pow(t, 0.82)));
-        if (t >= 1) { L.stepping = false; L.plant.copy(L.to); L.surfN.copy(L.toN); if (this.curSpeed > 1.2) this.world.puff(L.plant); }
+        // Claw closes as foot approaches ground
+        L.clawAngle = lerp(0.5, 0.15, t);
+        if (t >= 1) {
+          L.stepping = false; L.plant.copy(L.to); L.surfN.copy(L.toN);
+          L.clawAngle = 0.1; // grip ground
+          if (this.curSpeed > 1.2) this.world.puff(L.plant);
+          // Joint steam on step
+          const hipW = this.root.localToWorld(L.hip.clone());
+          this._steamJoint.emit(hipW, upv, 1.5, 2);
+        }
+      } else {
+        // Idle: claws gently grip
+        L.clawAngle = lerp(L.clawAngle, 0.1, 1 - Math.pow(0.1, dt));
       }
       const hipW = this.root.localToWorld(L.hip.clone());
       let sN = L.surfN.clone(); sN.multiplyScalar(0.7).addScaledVector(upv, 0.3).normalize(); if (sN.dot(upv) < 0.15) sN.copy(upv);
@@ -765,27 +756,10 @@ export class Spider {
         }
         const kd = knee.clone().sub(kneeIK); const kdl = kd.length(); if (kdl > 1.3) { knee.copy(kneeIK).addScaledVector(kd, 1.3 / kdl); depen(knee); }
       }
-      orientCyl(L.femurM, hipW, knee, this.legRad); orientCyl(L.tibiaM, knee, ankle, this.legRad * 0.8);
-      this._orientWheel(L, ankle, foot);
-      L.kneeM.position.copy(knee); L.hipM.position.copy(hipW);
-      L._hipW = hipW; L._knee = knee; L._ankle = ankle; L._foot = foot;
+      this._poseLegMeshes(L, hipW, knee, ankle, foot);
+      this._updateClaws(L, foot);
     }
   }
-  _orientWheel(L, ankle, foot) {
-    const WR = 0.42;
-    const wheelG = L.tarsusM;
-    if (!wheelG) return;
-    const legDir = foot.clone().sub(ankle); legDir.addScaledVector(this.up, -legDir.dot(this.up));
-    if (legDir.lengthSq() < 1e-6) legDir.copy(this.fwd);
-    legDir.normalize();
-    const axle = this.up.clone().cross(legDir);
-    if (axle.lengthSq() < 1e-6) axle.set(1, 0, 0);
-    axle.normalize();
-    wheelG.position.copy(foot).addScaledVector(this.up, WR);
-    const q = new THREE.Quaternion().setFromUnitVectors(V3(0, 1, 0), axle);
-    const spinQ = new THREE.Quaternion().setFromAxisAngle(axle, L.wheelAngle);
-    wheelG.quaternion.copy(spinQ).multiply(q);
-    L.wheelAngle += this.curSpeed * 0.08;
-  }
+
   get position() { return this.root.position; }
 }
