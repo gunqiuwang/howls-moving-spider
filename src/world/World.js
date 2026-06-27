@@ -50,7 +50,8 @@ export class World {
     g.addColorStop(1, '#A0D0F0');
     x.fillStyle = g; x.fillRect(0, 0, 16, 256);
     this.scene.background = new THREE.CanvasTexture(c);
-    this.scene.fog = null;
+    // Subtle distance haze — only fades far objects, doesn't block near view
+    this.scene.fog = new THREE.Fog(0xC8DDE8, 180, 500);
   }
 
   _terrain() {
@@ -130,8 +131,8 @@ export class World {
     this.clouds = [];
     for (let i = 0; i < 25; i++) {
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.8 + Math.random() * 0.15, depthWrite: false }));
-      sp.position.set((Math.random() - 0.5) * 200, 18 + Math.random() * 20, (Math.random() - 0.5) * 200);
-      const s = 30 + Math.random() * 40; sp.scale.set(s * 3, s * 1.5, 1);
+      sp.position.set((Math.random() - 0.5) * 250, 50 + Math.random() * 30, (Math.random() - 0.5) * 250);
+      const s = 12 + Math.random() * 18; sp.scale.set(s * 2, s, 1);
       sp.userData.speed = 0.3 + Math.random() * 0.5;
       this.scene.add(sp); this.clouds.push(sp);
     }
