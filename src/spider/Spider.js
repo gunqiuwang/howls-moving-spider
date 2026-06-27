@@ -495,11 +495,18 @@ export class Spider {
     for (const L of this.legs) {
       const hipW = this.root.localToWorld(L.hip.clone());
       const out = hipW.clone().sub(this.bodyOrigin); out.addScaledVector(this.up, -out.dot(this.up)); if (out.lengthSq() < 1e-4) out.copy(this.fwd); out.normalize();
-      // Tuck legs tightly against body in flight
-      const spread = lerp(1, 1.3, t), droop = lerp(0.5, 0.25, t);
-      const knee = hipW.clone().addScaledVector(out, this.femur * spread).addScaledVector(this.up, -this.femur * droop);
-      const ankle = knee.clone().addScaledVector(out, this.tibia * 0.15).addScaledVector(this.up, -this.tibia * 0.35);
-      const foot = ankle.clone().addScaledVector(this.up, -this.tarsus * 0.3);
+      // Graceful flight pose: legs spread outward like wings, slightly swept back
+      const spread = lerp(1, 1.8, t); // more spread
+      const sweep = lerp(0, 0.3, t); // slight backward sweep
+      const knee = hipW.clone()
+        .addScaledVector(out, this.femur * spread)
+        .addScaledVector(this.up, -this.femur * 0.15 * t) // slight droop
+        .addScaledVector(this.fwd, -this.femur * sweep); // sweep back
+      const ankle = knee.clone()
+        .addScaledVector(out, this.tibia * 0.3)
+        .addScaledVector(this.up, -this.tibia * 0.4)
+        .addScaledVector(this.fwd, -this.tibia * sweep * 0.5);
+      const foot = ankle.clone().addScaledVector(this.up, -this.tarsus * 0.2);
       L.plant.copy(foot);
       this._poseLegMeshes(L, hipW, knee, ankle, foot);
     }

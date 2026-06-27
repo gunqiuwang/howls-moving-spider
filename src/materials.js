@@ -18,12 +18,12 @@ function pick(colors, rng) {
 
 export function makeRustRivetTexture(seed = 42) {
   const { c, x, w, h } = canvas2d(512, 512); const rng = mulberry32(seed);
-  x.fillStyle = '#4a3a2a'; x.fillRect(0, 0, w, h);
+  x.fillStyle = '#6a5038'; x.fillRect(0, 0, w, h);
   for (let i = 0; i < 40; i++) {
     const rx = rng() * w, ry = rng() * h, rr = 15 + rng() * 50;
     const grad = x.createRadialGradient(rx, ry, 0, rx, ry, rr);
     const rv = 0.6 + rng() * 0.8;
-    grad.addColorStop(0, `rgba(${90 * rv | 0},${40 * rv | 0},${10 * rv | 0},0.4)`);
+    grad.addColorStop(0, `rgba(${120 * rv | 0},${60 * rv | 0},${20 * rv | 0},0.4)`);
     grad.addColorStop(1, 'rgba(0,0,0,0)');
     x.fillStyle = grad; x.fillRect(rx - rr, ry - rr, rr * 2, rr * 2);
   }
@@ -35,7 +35,7 @@ export function makeRustRivetTexture(seed = 42) {
     const rx = col * 32 + 16 + (rng() - 0.5) * 8, ry = row * 32 + 16 + (rng() - 0.5) * 8, r = 2 + rng() * 1.5;
     x.fillStyle = 'rgba(0,0,0,0.25)'; x.beginPath(); x.arc(rx + 0.5, ry + 0.5, r + 0.5, 0, Math.PI * 2); x.fill();
     const rv = 0.7 + rng() * 0.4;
-    x.fillStyle = `rgb(${90 * rv | 0},${90 * rv | 0},${90 * rv | 0})`;
+    x.fillStyle = `rgb(${120 * rv | 0},${120 * rv | 0},${120 * rv | 0})`;
     x.beginPath(); x.arc(rx, ry, r, 0, Math.PI * 2); x.fill();
     x.fillStyle = 'rgba(255,240,200,0.12)'; x.beginPath(); x.arc(rx - 0.5, ry - 0.5, r * 0.5, 0, Math.PI * 2); x.fill();
   }
