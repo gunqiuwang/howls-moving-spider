@@ -303,7 +303,7 @@ export class Spider {
       femGroup.add(new THREE.Mesh(GEO.joint, M.darkIron)); // hip joint sphere
       femGroup.children[0].scale.set(armR, 1, armR);
       femGroup.children[1].scale.setScalar(armR * 1.2);
-      scene.add(femGroup);
+      this.scene.add(femGroup);
 
       // Tibia group (lower leg with armor)
       const tibGroup = new THREE.Group();
@@ -311,7 +311,7 @@ export class Spider {
       tibGroup.add(new THREE.Mesh(GEO.joint, M.darkIron)); // knee joint
       tibGroup.children[0].scale.set(armR * 0.85, 1, armR * 0.85);
       tibGroup.children[1].scale.setScalar(armR * 1.1);
-      scene.add(tibGroup);
+      this.scene.add(tibGroup);
 
       // 3-toe claw group
       const clawGroup = new THREE.Group();
@@ -333,7 +333,7 @@ export class Spider {
         toeGroup.rotation.x = 0.4; // default spread angle
         clawGroup.add(toeGroup);
       }
-      scene.add(clawGroup);
+      this.scene.add(clawGroup);
 
       L.femGroup = femGroup; L.tibGroup = tibGroup; L.clawGroup = clawGroup;
       L.armR = armR;
