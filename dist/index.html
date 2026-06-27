@@ -6,14 +6,18 @@
     <meta name="theme-color" content="#1a0e06" />
     <meta name="description" content="Howl's Moving Castle — a procedural walking castle with eight mechanical legs, golden hour atmosphere. Built with Three.js." />
     <title>Howl's Moving Castle</title>
-    <script type="module" crossorigin src="/assets/index-C4h8k7wb.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-COf0qlOm.css">
+    <script type="module" crossorigin src="/assets/index-BlTWu104.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-D-NJDTaL.css">
   </head>
   <body>
     <div id="app"></div>
     <div id="hud">
       <div id="title">HOWL'S <span>·</span> MOVING CASTLE</div>
-      <div id="stats"><span id="fps">--</span> FPS<br />SPEED <b id="spd">0.0</b><br /><i id="grade">FLAT</i></div>
+      <div id="score-area">
+        <div id="coin-display">🪙 <span id="score">0</span></div>
+        <div id="coin-remaining"><span id="coins">0/0</span> coins</div>
+      </div>
+      <div id="stats"><span id="fps">--</span> FPS<br />SPEED <b id="spd">0.0</b></div>
     </div>
     <button id="reset">RESET</button>
     <div id="hint"></div>
@@ -22,10 +26,6 @@
     <div id="sprint">BOOST</div>
     <div id="jump">JUMP</div>
     <div id="flybtn">FLY</div>
-    <div id="panel">
-      <div id="panelHead"><span>TUNING</span><span id="panelTog">&ndash;</span></div>
-      <div id="panelBody"><div id="sliders"></div></div>
-    </div>
     <div id="err"></div>
   </body>
 </html>

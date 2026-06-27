@@ -12,7 +12,11 @@
     <div id="app"></div>
     <div id="hud">
       <div id="title">HOWL'S <span>·</span> MOVING CASTLE</div>
-      <div id="stats"><span id="fps">--</span> FPS<br />SPEED <b id="spd">0.0</b><br /><i id="grade">FLAT</i></div>
+      <div id="score-area">
+        <div id="coin-display">🪙 <span id="score">0</span></div>
+        <div id="coin-remaining"><span id="coins">0/0</span> coins</div>
+      </div>
+      <div id="stats"><span id="fps">--</span> FPS<br />SPEED <b id="spd">0.0</b></div>
     </div>
     <button id="reset">RESET</button>
     <div id="hint"></div>
@@ -21,10 +25,6 @@
     <div id="sprint">BOOST</div>
     <div id="jump">JUMP</div>
     <div id="flybtn">FLY</div>
-    <div id="panel">
-      <div id="panelHead"><span>TUNING</span><span id="panelTog">&ndash;</span></div>
-      <div id="panelBody"><div id="sliders"></div></div>
-    </div>
     <div id="err"></div>
     <script type="module" src="./src/main.js"></script>
   </body>
