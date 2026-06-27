@@ -134,104 +134,172 @@ export class Spider {
     this._abQ = new THREE.Quaternion();
 
     // ================================================================
-    //  IRREGULAR MULTI-BUILDING BODY (not a sphere!)
+    //  ORGANIC IRREGULAR BODY — overlapping shapes, no clean edges
     // ================================================================
 
-    // ---- BASE PLATFORM (wide stone foundation) ----
-    this._part(this.root, new THREE.BoxGeometry(3.2, 0.5, 2.8), M.stoneBase, 0, -0.25, -0.1);
+    // ---- WIDE STONE BASE (battered foundation) ----
+    this._part(this.root, new THREE.BoxGeometry(3.8, 0.6, 3.2), M.stoneBase, 0, -0.3, -0.1);
+    this._part(this.root, new THREE.BoxGeometry(3.2, 0.4, 2.6), M.stoneBase, 0.1, 0.1, 0.0);
 
-    // ---- MAIN HALL (ground floor, largest block) ----
-    const hall = this._part(this.root, new THREE.BoxGeometry(2.6, 1.6, 2.2), M.rustIron, 0, 0.8, 0.0);
-    hall.rotation.z = 0.015;
+    // ---- MAIN MASS — overlapping irregular blocks ----
+    // Central mass (biggest, slightly tilted)
+    const m1 = this._part(this.root, new THREE.BoxGeometry(2.8, 2.0, 2.4), M.rustIron, 0, 1.0, 0.1);
+    m1.rotation.set(0.01, 0.02, 0.02);
+    // Left bulge
+    const m2 = this._part(this.root, new THREE.BoxGeometry(1.8, 1.6, 2.0), M.rustIron, -0.8, 0.8, -0.2);
+    m2.rotation.set(0, -0.03, 0.04);
+    // Right bulge (different material — wood)
+    const m3 = this._part(this.root, new THREE.BoxGeometry(1.6, 1.4, 1.8), M.oldWood, 0.7, 0.9, 0.3);
+    m3.rotation.set(0.02, 0.01, -0.03);
+    // Upper mass (offset)
+    const m4 = this._part(this.root, new THREE.BoxGeometry(2.2, 1.4, 2.0), M.rustIron, 0.2, 2.3, -0.1);
+    m4.rotation.set(-0.01, -0.02, 0.015);
 
-    // ---- SECOND FLOOR (offset right, wood) ----
-    const floor2 = this._part(this.root, new THREE.BoxGeometry(2.0, 1.2, 1.8), M.oldWood, 0.3, 2.0, -0.15);
-    floor2.rotation.z = -0.02;
-
-    // ---- TOWER (left, tall) ----
-    const tower = this._part(this.root, new THREE.BoxGeometry(1.0, 1.8, 0.9), M.rustIron, -0.5, 2.8, 0.2);
-    tower.rotation.z = 0.04;
+    // ---- TOWER (tall, leaning) ----
+    const tower = this._part(this.root, new THREE.BoxGeometry(1.0, 2.2, 0.9), M.darkIron, -0.6, 3.0, 0.2);
+    tower.rotation.z = 0.06;
+    // Tower roof
+    this._part(this.root, new THREE.ConeGeometry(0.8, 1.2, 5), M.roofTile, -0.6, 4.5, 0.2);
 
     // ---- SMALL TURRET (right) ----
-    this._part(this.root, new THREE.BoxGeometry(0.8, 1.0, 0.7), M.oldWood, 0.8, 2.4, -0.3);
+    const turret = this._part(this.root, new THREE.BoxGeometry(0.7, 1.2, 0.6), M.oldWood, 0.9, 2.8, -0.3);
+    turret.rotation.z = -0.04;
+    this._part(this.root, new THREE.ConeGeometry(0.5, 0.6, 4), M.roofTile, 0.9, 3.6, -0.3);
 
-    // ---- ROOFS ----
-    const r1 = this._part(this.root, new THREE.ConeGeometry(1.8, 0.7, 4), M.roofTile, 0, 1.9, 0.0); r1.rotation.y = Math.PI / 4;
-    const r2 = this._part(this.root, new THREE.ConeGeometry(1.4, 0.5, 4), M.roofTile, 0.3, 2.85, -0.15); r2.rotation.y = Math.PI / 4 + 0.15;
-    this._part(this.root, new THREE.ConeGeometry(0.7, 1.0, 5), M.roofTile, -0.5, 4.1, 0.2);
-    const r4 = this._part(this.root, new THREE.ConeGeometry(0.6, 0.5, 4), M.roofTile, 0.8, 3.15, -0.3); r4.rotation.y = Math.PI / 4;
+    // ---- ROOFS on main mass ----
+    const r1 = this._part(this.root, new THREE.ConeGeometry(2.0, 0.8, 4), M.roofTile, 0, 2.3, 0.1);
+    r1.rotation.y = Math.PI / 4;
+    const r2 = this._part(this.root, new THREE.ConeGeometry(1.5, 0.6, 4), M.roofTile, 0.2, 3.3, -0.1);
+    r2.rotation.y = Math.PI / 4 + 0.2;
 
-    // ---- FACE (front of main hall) ----
-    const eyeY = 1.6, eyeZ = 1.15, eyeSpacing = 0.5;
+    // ---- FACE — BIG, PROMINENT, MENACING ----
+    const eyeY = 2.0, eyeZ = 1.3, eyeSpacing = 0.6;
     for (const side of [-1, 1]) {
       const ex = side * eyeSpacing;
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.05, 8, 12), M.darkIron);
+      // Large iron rim (protruding)
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.08, 8, 16), M.darkIron);
       rim.position.set(ex, eyeY, eyeZ); rim.castShadow = true; this.root.add(rim);
-      const glass = new THREE.Mesh(new THREE.CircleGeometry(0.24, 12), M.darkGlass);
-      glass.position.set(ex, eyeY, eyeZ + 0.01); this.root.add(glass);
+      // Glass disc (glowing slightly)
+      const glass = new THREE.Mesh(new THREE.CircleGeometry(0.34, 16), M.darkGlass);
+      glass.position.set(ex, eyeY, eyeZ + 0.02); this.root.add(glass);
+      // Mechanical detail around eye
+      this._part(this.root, new THREE.BoxGeometry(0.08, 0.5, 0.08), M.darkIron, ex + side * 0.42, eyeY, eyeZ);
+      this._part(this.root, new THREE.BoxGeometry(0.5, 0.08, 0.08), M.darkIron, ex, eyeY + 0.42, eyeZ);
     }
-    const mouthY = 0.6, mouthZ = 1.15;
-    this._part(this.root, new THREE.BoxGeometry(1.2, 0.4, 0.2), M.darkInterior, 0, mouthY, mouthZ);
-    for (let i = 0; i < 7; i++) { const tx = -0.48 + i * 0.16, th = 0.06 + (i % 2) * 0.04; this._part(this.root, new THREE.BoxGeometry(0.08, th, 0.1), M.steel, tx, mouthY + 0.22, mouthZ + 0.04); }
-    for (let i = 0; i < 6; i++) { const tx = -0.36 + i * 0.16, th = 0.05 + ((i + 1) % 2) * 0.04; this._part(this.root, new THREE.BoxGeometry(0.07, th, 0.08), M.steel, tx, mouthY - 0.22, mouthZ + 0.04); }
 
-    // ---- SIDE PIPES (connected to body) ----
+    // MOUTH — wide, jagged, menacing
+    const mouthY = 0.8, mouthZ = 1.35;
+    // Dark interior
+    this._part(this.root, new THREE.BoxGeometry(1.8, 0.7, 0.3), M.darkInterior, 0, mouthY, mouthZ);
+    // Upper teeth — large, irregular
+    for (let i = 0; i < 9; i++) {
+      const tx = -0.72 + i * 0.18;
+      const th = 0.1 + (i % 3) * 0.06;
+      this._part(this.root, new THREE.BoxGeometry(0.12, th, 0.14), M.steel, tx, mouthY + 0.38, mouthZ + 0.05);
+    }
+    // Lower teeth
+    for (let i = 0; i < 8; i++) {
+      const tx = -0.6 + i * 0.18;
+      const th = 0.08 + ((i + 1) % 3) * 0.05;
+      this._part(this.root, new THREE.BoxGeometry(0.11, th, 0.12), M.steel, tx, mouthY - 0.38, mouthZ + 0.05);
+    }
+    // Nose — protruding metal tube
+    this._part(this.root, new THREE.CylinderGeometry(0.12, 0.14, 0.5, 6), M.darkIron, 0, eyeY - 0.4, eyeZ + 0.4);
+
+    // ---- SIDE PIPES (many, connected to body) ----
     for (const side of [-1, 1]) {
-      const p1 = this._part(this.root, new THREE.CylinderGeometry(0.06, 0.06, 1.4, 6), M.darkIron, side * 1.35, 0.8, 0.5); p1.rotation.z = side * 0.15;
-      const p2 = this._part(this.root, new THREE.CylinderGeometry(0.05, 0.05, 0.8, 6), M.darkIron, side * 0.9, 1.8, 0.8); p2.rotation.x = -0.3;
-      const cannon = this._part(this.root, new THREE.CylinderGeometry(0.08, 0.1, 0.5, 6), M.darkIron, side * 1.4, 1.4, 0.7); cannon.rotation.x = -0.15;
+      // Vertical main pipe
+      const p1 = this._part(this.root, new THREE.CylinderGeometry(0.07, 0.07, 2.0, 6), M.darkIron, side * 1.5, 1.0, 0.4);
+      p1.rotation.z = side * 0.12;
+      // Horizontal connector
+      const p2 = this._part(this.root, new THREE.CylinderGeometry(0.06, 0.06, 1.0, 6), M.darkIron, side * 1.0, 2.0, 0.8);
+      p2.rotation.x = -0.3;
+      // Diagonal pipe
+      const p3 = this._part(this.root, new THREE.CylinderGeometry(0.05, 0.05, 1.2, 6), M.darkIron, side * 1.2, 1.5, -0.5);
+      p3.rotation.set(0.2, 0, side * 0.4);
+      // Small cannon
+      const cannon = this._part(this.root, new THREE.CylinderGeometry(0.09, 0.11, 0.5, 6), M.darkIron, side * 1.6, 1.5, 0.7);
+      cannon.rotation.x = -0.15;
     }
-    this._part(this.root, new THREE.CylinderGeometry(0.08, 0.1, 0.4, 6), M.darkIron, 0, 1.2, 1.35);
+    // Nose exhaust pipes (two, flanking the nose)
+    for (const side of [-1, 1]) {
+      this._part(this.root, new THREE.CylinderGeometry(0.06, 0.08, 0.4, 6), M.darkIron, side * 0.25, 1.4, 1.6);
+    }
 
-    // ---- BALCONY ----
-    this._part(this.root, new THREE.BoxGeometry(0.5, 0.08, 1.2), M.darkIron, -1.4, 1.5, 0.0);
-    for (const dz of [-0.4, 0, 0.4]) this._part(this.root, new THREE.BoxGeometry(0.04, 0.25, 0.04), M.darkIron, -1.4, 1.7, dz);
+    // ---- BALCONY / STAIRS ----
+    this._part(this.root, new THREE.BoxGeometry(0.6, 0.1, 1.4), M.darkIron, -1.6, 1.6, 0.0);
+    for (const dz of [-0.5, 0, 0.5]) this._part(this.root, new THREE.BoxGeometry(0.05, 0.3, 0.05), M.darkIron, -1.6, 1.85, dz);
+    // Right side balcony
+    this._part(this.root, new THREE.BoxGeometry(0.5, 0.08, 1.0), M.darkIron, 1.5, 2.0, -0.4);
 
     // ---- SIDE GEARS ----
     this._sideGears = [];
     for (const side of [-1, 1]) {
       const gearGroup = new THREE.Group();
-      gearGroup.add(new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.07, 8, 20), M.gearIron));
-      gearGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.18, 8), M.darkIron));
-      for (let i = 0; i < 8; i++) { const spoke = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.04, 0.04), M.darkIron); spoke.rotation.z = (i / 8) * Math.PI; gearGroup.add(spoke); }
-      gearGroup.position.set(side * 1.5, 1.2, -0.2); gearGroup.rotation.y = Math.PI / 2;
+      gearGroup.add(new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.09, 8, 24), M.gearIron));
+      gearGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.22, 8), M.darkIron));
+      for (let i = 0; i < 10; i++) {
+        const spoke = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.04, 0.04), M.darkIron);
+        spoke.rotation.z = (i / 10) * Math.PI; gearGroup.add(spoke);
+      }
+      gearGroup.position.set(side * 1.7, 1.3, -0.3);
+      gearGroup.rotation.y = Math.PI / 2;
       this.root.add(gearGroup); this._sideGears.push(gearGroup);
     }
 
-    // ---- CHIMNEYS (sitting ON the roofs) ----
-    this._chimneys = [];
-    for (const ch of [
-      { x: -0.4, y: 2.3, z: 0.1, r: 0.12, h: 0.8 },
-      { x: 0.5, y: 3.1, z: -0.1, r: 0.10, h: 0.7 },
-      { x: -0.5, y: 4.6, z: 0.2, r: 0.14, h: 1.0 },
-      { x: 0.8, y: 3.4, z: -0.3, r: 0.08, h: 0.5 },
-    ]) {
-      const chimney = this._part(this.root, new THREE.CylinderGeometry(ch.r * 0.7, ch.r, ch.h, 6), M.rustIron, ch.x, ch.y, ch.z);
-      this._part(this.root, new THREE.CylinderGeometry(ch.r * 1.2, ch.r * 0.7, 0.08, 6), M.darkIron, ch.x, ch.y + ch.h * 0.5 + 0.04, ch.z);
-      this._chimneys.push({ mesh: chimney, pos: V3(ch.x, ch.y + ch.h * 0.5 + 0.08, ch.z) });
+    // ---- SMALL GEAR DECORATIONS ----
+    for (const [gx, gy, gz, r] of [[-1.0, 2.8, 0.8, 0.2], [1.3, 2.5, -0.6, 0.18], [0.2, 3.5, 0.5, 0.15]]) {
+      const gear = new THREE.Mesh(new THREE.TorusGeometry(r, 0.03, 6, 12), M.darkIron);
+      gear.position.set(gx, gy, gz); gear.rotation.x = Math.random() * 0.5;
+      gear.castShadow = true; this.root.add(gear);
     }
 
-    // ---- WINDOWS on building walls (warm glow) ----
+    // ---- CHIMNEYS (on roofs, not floating) ----
+    this._chimneys = [];
+    for (const ch of [
+      { x: -0.5, y: 2.7, z: 0.1, r: 0.14, h: 1.0 },
+      { x: 0.6, y: 3.6, z: -0.2, r: 0.11, h: 0.8 },
+      { x: -0.6, y: 5.1, z: 0.2, r: 0.16, h: 1.2 },
+      { x: 0.9, y: 3.9, z: -0.3, r: 0.09, h: 0.6 },
+      { x: -0.2, y: 2.5, z: -0.8, r: 0.10, h: 0.7 },
+    ]) {
+      const chimney = this._part(this.root, new THREE.CylinderGeometry(ch.r * 0.7, ch.r, ch.h, 6), M.rustIron, ch.x, ch.y, ch.z);
+      this._part(this.root, new THREE.CylinderGeometry(ch.r * 1.3, ch.r * 0.7, 0.1, 6), M.darkIron, ch.x, ch.y + ch.h * 0.5 + 0.05, ch.z);
+      this._chimneys.push({ mesh: chimney, pos: V3(ch.x, ch.y + ch.h * 0.5 + 0.1, ch.z) });
+    }
+
+    // ---- WINDOWS (warm glow) ----
     for (const [x, y, z, w, h] of [
-      [0.7, 0.9, 1.12, 0.25, 0.2], [-0.5, 0.9, 1.12, 0.25, 0.2],
-      [1.32, 0.8, 0.4, 0.18, 0.22], [-1.32, 0.8, 0.4, 0.18, 0.22],
-      [0.5, 2.1, 0.92, 0.2, 0.18], [-0.2, 2.1, 0.92, 0.2, 0.18],
+      [0.7, 1.0, 1.2, 0.28, 0.22], [-0.5, 1.0, 1.2, 0.28, 0.22],
+      [1.4, 0.8, 0.5, 0.2, 0.24], [-1.4, 0.8, 0.5, 0.2, 0.24],
+      [0.4, 2.3, 1.0, 0.22, 0.2], [-0.2, 2.3, 1.0, 0.22, 0.2],
+      [0.8, 2.0, -0.8, 0.18, 0.2],
     ]) { this._part(this.root, new THREE.BoxGeometry(w, h, 0.06), M.windowGlow, x, y, z); }
 
-    // ---- DOOR at the mouth (entrance) ----
-    this._part(this.root, new THREE.BoxGeometry(0.5, 0.6, 0.08), M.darkIron, 0, 0.55, 1.27);
-
-    // ---- WOODEN BEAMS on walls ----
+    // ---- WOODEN BEAMS ----
     for (const side of [-1, 1]) {
-      this._part(this.root, new THREE.BoxGeometry(0.06, 1.4, 0.06), M.oldWood, side * 1.35, 0.8, 0.8);
-      this._part(this.root, new THREE.BoxGeometry(0.06, 1.4, 0.06), M.oldWood, side * 1.35, 0.8, -0.8);
+      this._part(this.root, new THREE.BoxGeometry(0.07, 1.8, 0.07), M.oldWood, side * 1.4, 1.0, 0.9);
+      this._part(this.root, new THREE.BoxGeometry(0.07, 1.8, 0.07), M.oldWood, side * 1.4, 1.0, -0.9);
     }
 
     // ---- HANGING LANTERNS ----
-    for (const [lx, ly, lz] of [[-1.0, 1.3, 0.8], [1.0, 1.3, 0.8]]) {
-      this._part(this.root, new THREE.BoxGeometry(0.12, 0.16, 0.12), M.windowGlow, lx, ly, lz);
-      this._part(this.root, new THREE.CylinderGeometry(0.01, 0.01, 0.3, 4), M.darkIron, lx, ly + 0.18, lz);
+    for (const [lx, ly, lz] of [[-1.0, 1.4, 0.9], [1.0, 1.4, 0.9]]) {
+      this._part(this.root, new THREE.BoxGeometry(0.14, 0.18, 0.14), M.windowGlow, lx, ly, lz);
+      this._part(this.root, new THREE.CylinderGeometry(0.01, 0.01, 0.35, 4), M.darkIron, lx, ly + 0.2, lz);
     }
+
+    // ---- PATCHED STEEL PLATES ----
+    this._part(this.root, new THREE.BoxGeometry(0.7, 0.5, 0.08), M.rustIron, 1.4, 2.1, 1.0);
+    this._part(this.root, new THREE.BoxGeometry(0.5, 0.4, 0.08), M.rustIron, -1.2, 2.6, 0.8);
+    this._part(this.root, new THREE.BoxGeometry(0.6, 0.3, 0.08), M.rustIron, 0.0, 3.2, 0.9);
+
+    // ---- WOODEN BARREL ----
+    this._part(this.root, new THREE.CylinderGeometry(0.18, 0.18, 0.35, 8), M.oldWood, 1.6, 1.1, -0.9);
+
+    // ---- ANTENNA / WIRE ----
+    this._part(this.root, new THREE.CylinderGeometry(0.02, 0.02, 1.8, 4), M.darkIron, 0.3, 4.5, -0.5);
+
+    // ---- TRAILING: boiler / abdomen ----
     // ---- TRAILING: boiler / abdomen ----
     const py = this.PEDICEL.y, pz = this.PEDICEL.z;
     this.body = this._part(this.abdomen, new THREE.BoxGeometry(2.2, 1.5, 2.0), M.rustIron, 0, 0.0 - py, -1.6 - pz);
