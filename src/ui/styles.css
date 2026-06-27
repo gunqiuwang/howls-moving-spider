@@ -98,3 +98,15 @@ canvas { display: block; touch-action: none; }
   50% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
 }
 
+/* FLY button — gold ring, left of JUMP */
+#flybtn {
+  position: fixed; right: 198px; bottom: 42px; width: 74px; height: 74px; border-radius: 50%; z-index: 12;
+  border: 1.5px solid rgba(212, 160, 64, 0.5); background: radial-gradient(circle, rgba(212, 160, 64, 0.15), rgba(212, 160, 64, 0.03));
+  color: #ffe0a0; font-size: 10px; letter-spacing: 0.1em; display: none; align-items: center; justify-content: center;
+  pointer-events: auto; cursor: pointer; text-align: center; line-height: 1.3;
+}
+#flybtn:active { background: radial-gradient(circle, rgba(212, 160, 64, 0.4), rgba(212, 160, 64, 0.1)); border-color: var(--gold); }
+#flybtn.active { background: radial-gradient(circle, rgba(232, 80, 48, 0.4), rgba(232, 80, 48, 0.1)); border-color: #E85030; color: #FF8060; }
+
+#err { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 30px; color: #e08040; background: #1a0e06; z-index: 99; font-size: 13px; text-align: center; }
+
