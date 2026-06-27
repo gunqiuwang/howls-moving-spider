@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#1a0e06" />
+    <meta name="description" content="Howl's Moving Castle — a procedural walking castle with eight mechanical legs, golden hour atmosphere. Built with Three.js." />
+    <title>Howl's Moving Castle</title>
+    <link rel="stylesheet" href="./src/ui/styles.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud">
+      <div id="title">HOWL'S <span>·</span> MOVING CASTLE</div>
+      <div id="stats"><span id="fps">--</span> FPS<br />SPEED <b id="spd">0.0</b><br /><i id="grade">FLAT</i></div>
+    </div>
+    <button id="reset">RESET</button>
+    <div id="hint"></div>
+    <div id="flight-indicator">✈ FLYING</div>
+    <div id="joy"></div><div id="knob"></div>
+    <div id="sprint">BOOST</div>
+    <div id="jump">JUMP</div>
+    <div id="flybtn">FLY</div>
+    <div id="panel">
+      <div id="panelHead"><span>TUNING</span><span id="panelTog">&ndash;</span></div>
+      <div id="panelBody"><div id="sliders"></div></div>
+    </div>
+    <div id="err"></div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
