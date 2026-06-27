@@ -85,7 +85,7 @@ export function getMaterials() {
   const roofTex = makeRoofTexture(55);
   const stoneTex = makeStoneTexture(123);
   _cache = {
-    rustIron:   matFromTexture(rustTex, { roughness: 0.78, metalness: 0.25 }),
+    rustIron:   matFromTexture(rustTex, { roughness: 0.85, metalness: 0.15 }),
     oldWood:    matFromTexture(woodTex, { roughness: 0.88, metalness: 0.05 }),
     roofTile:   matFromTexture(roofTex, { roughness: 0.82, metalness: 0.1 }),
     stoneBase:  matFromTexture(stoneTex, { roughness: 0.9, metalness: 0.08 }),
@@ -94,7 +94,7 @@ export function getMaterials() {
     darkInterior: matStd(0x1a1208, { roughness: 0.95, metalness: 0.05 }),
     windowGlow: matStd(0xFFB347, { emissive: 0xFFA030, emissiveIntensity: 0.8 }),
     darkIron:   matStd(0x5a5040, { roughness: 0.65, metalness: 0.4 }),
-    legArmor:   matFromTexture(rustTex, { roughness: 0.78, metalness: 0.25 }),
+    legArmor:   matFromTexture(rustTex, { roughness: 0.85, metalness: 0.15 }),
     clawSteel:  matStd(0x7a6a55, { roughness: 0.55, metalness: 0.5 }),
     gearIron:   matStd(0x5a4e38, { roughness: 0.6, metalness: 0.45 }),
   };

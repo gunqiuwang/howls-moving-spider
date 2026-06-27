@@ -12,7 +12,7 @@ const angLerp = (a, b, t) => a + wrapPi(b - a) * t;
 export class SpiderCamera {
   constructor(camera) {
     this.camera = camera;
-    this.yaw = Math.PI; this.pitch = 0.5; this.dist = 18;
+    this.yaw = Math.PI; this.pitch = 0.35; this.dist = 18;
     this.target = V3(0, 2, 0);
   }
   addDrag(dx, dy) { this.yaw -= dx * 0.005; this.pitch = clamp(this.pitch + dy * 0.005, 0.06, 1.28); }

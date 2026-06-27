@@ -17,7 +17,8 @@ try {
   renderer.setPixelRatio(Math.min(devicePixelRatio, TOUCH ? 1.5 : 2));
   renderer.setSize(innerWidth, innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.3;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.95;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   app.appendChild(renderer.domElement);
 
@@ -76,58 +77,44 @@ class Game {
   _spawnCoins() {
     for (const c of this.coins) { if (c.mesh.parent) c.mesh.parent.remove(c.mesh); }
     this.coins = []; this.totalCoins = 0;
-
     const positions = [
       [10,0],[-6,8],[4,-10],[-12,-6],[8,12],[24,16],[-20,24],[30,-10],[-24,-16],[16,22],
       [40,30],[-36,40],[44,-24],[-30,-36],[20,44],[60,50],[-56,60],[70,-40],[-64,-50],[50,70],
       [-16,-40],[36,-44],[-50,20],[56,10],[-10,60],[80,20],[-70,-30],[30,80],[-80,40],[60,-60],
     ];
-
     const coinGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.1, 16);
     const coinMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, emissive: 0xFFAA00, emissiveIntensity: 0.5, roughness: 0.3, metalness: 0.8 });
     const starMat = new THREE.MeshStandardMaterial({ color: 0xFF6B35, emissive: 0xFF4500, emissiveIntensity: 0.7, roughness: 0.3, metalness: 0.7 });
 
     for (let i = 0; i < positions.length; i++) {
       const [cx, cz] = positions[i];
-      const x = cx * 2, z = cz * 2;
-      const y = terrainH(x, z) + 1.2;
+      const x = cx * 2, z = cz * 2, y = terrainH(x, z) + 1.2;
       const isSpecial = i % 10 === 9;
       const mesh = new THREE.Mesh(coinGeo, isSpecial ? starMat.clone() : coinMat.clone());
-      mesh.rotation.x = Math.PI / 2;
-      mesh.position.set(x, y, z); mesh.castShadow = true;
+      mesh.rotation.x = Math.PI / 2; mesh.position.set(x, y, z); mesh.castShadow = true;
       this.scene.add(mesh);
       this.coins.push({ mesh, x, z, baseY: y, collected: false, value: isSpecial ? 5 : 1, bobPhase: Math.random() * Math.PI * 2 });
       this.totalCoins += isSpecial ? 5 : 1;
     }
   }
 
-  respawnCoins() {
-    for (const c of this.coins) { c.collected = false; c.mesh.visible = true; }
-    this._updateHUD();
-  }
+  respawnCoins() { for (const c of this.coins) { c.collected = false; c.mesh.visible = true; } this._updateHUD(); }
 
   _updateHUD() {
     const scoreEl = document.getElementById('score');
     const coinsEl = document.getElementById('coins');
     if (scoreEl) scoreEl.textContent = this.score;
-    if (coinsEl) {
-      const remaining = this.coins.filter(c => !c.collected).length;
-      coinsEl.textContent = remaining + '/' + this.coins.length;
-    }
+    if (coinsEl) { const remaining = this.coins.filter(c => !c.collected).length; coinsEl.textContent = remaining + '/' + this.coins.length; }
   }
 
   update(dt) {
     if (!this.spider) return;
-    const sp = this.spider.position;
-    const t = performance.now() * 0.001;
-
+    const sp = this.spider.position; const t = performance.now() * 0.001;
     for (const coin of this.coins) {
       if (coin.collected) continue;
-      // 动画
       coin.mesh.position.y = coin.baseY + Math.sin(t * 2 + coin.bobPhase) * 0.3;
       coin.mesh.rotation.z += dt * 2.5;
       if (coin.value > 1) coin.mesh.material.emissiveIntensity = 0.5 + Math.sin(t * 3 + coin.bobPhase) * 0.3;
-      // 碰撞
       const dx = sp.x - coin.x, dz = sp.z - coin.z;
       if (Math.sqrt(dx * dx + dz * dz) < 3.0 && Math.abs(sp.y - coin.mesh.position.y) < 5) {
         coin.collected = true; coin.mesh.visible = false;
@@ -148,10 +135,7 @@ class Game {
 
 // ---------- 主循环 ----------
 if (spider) {
-  document.getElementById('reset').addEventListener('click', () => {
-    spider.reset();
-    if (window._game) { window._game.score = 0; window._game.respawnCoins(); }
-  });
+  document.getElementById('reset').addEventListener('click', () => { spider.reset(); if (window._game) { window._game.score = 0; window._game.respawnCoins(); } });
   document.getElementById('hint').textContent = TOUCH
     ? '左侧拖拽 · 移动     右侧拖拽 · 视角     跳跃     加速     起飞'
     : 'WASD · 移动     拖拽 · 视角     空格 · 跳跃     Shift · 加速     F · 飞行     R · 重置';
@@ -171,7 +155,7 @@ if (spider) {
       const inp = input.getInput();
       spider.update(dt, inp);
       game.update(dt);
-      world.updateDust(dt); world.updateClouds(dt); world.updateButterflies(dt);
+      world.updateDust(dt); world.updateClouds(dt); world.updateButterflies(dt); world.updateBirds(dt); world.updateRibbons(dt);
       spiderCam.update(dt, spider, input.dragging);
       renderer.render(scene, camera);
     } catch (err) { crashed = true; fatal('运行时错误: ' + (err && err.message ? err.message : err)); console.error(err); }
