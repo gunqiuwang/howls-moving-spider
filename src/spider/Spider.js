@@ -174,11 +174,23 @@ export class Spider {
     return { body, roof };
   }
 
+  _tower(parent, x, y, z, r, h, mat, roofMat, opts = {}) {
+    const M = getMaterials();
+    const body = this._part(parent, new THREE.CylinderGeometry(r * 0.82, r, h, 8), mat, x, y, z);
+    body.rotation.set(opts.rx || 0, opts.ry || 0, opts.rz || 0);
+    const roof = this._part(parent, new THREE.ConeGeometry(r * 1.28, h * 0.32, 8), roofMat, x, y + h * 0.58, z);
+    roof.rotation.set(0, (opts.ry || 0) + Math.PI / 8, opts.rz || 0);
+    this._warmWindow(parent, x, y + h * 0.08, z + r * 0.9, Math.min(0.18, r * 0.65), Math.min(0.22, h * 0.14));
+    this._part(parent, new THREE.BoxGeometry(r * 1.45, 0.06, 0.06), M.oldWood, x, y + h * 0.36, z + r * 0.9);
+    return { body, roof };
+  }
+
   _enlargeCastleVisuals(scale = 1.25) {
     for (const child of this.root.children) {
       child.position.multiplyScalar(scale);
       child.scale.multiplyScalar(scale);
     }
+    if (this._chimneys) for (const ch of this._chimneys) ch.pos.multiplyScalar(scale);
   }
 
   _warmWindow(parent, x, y, z, w, h) {
@@ -331,6 +343,20 @@ export class Spider {
     this._house(this.root, -1.68, 1.58, -0.48, 0.92, 1.02, 0.82, M.plaster, M.roofTile, { ry: 0.32, rz: -0.04 });
     this._house(this.root, 1.68, 1.46, -0.62, 0.92, 0.94, 0.78, M.oldWood, M.roofTile, { ry: -0.28, rz: 0.04 });
 
+    // Tall, off-balance upper mass: the castle should read as a walking heap
+    // of architecture before the viewer notices the mechanical spider base.
+    this._house(this.root, -0.18, 3.42, 0.02, 1.82, 1.55, 1.12, M.plaster, M.roofTile, { ry: 0.06, rz: -0.035 });
+    this._house(this.root, 0.92, 3.18, -0.48, 1.1, 1.28, 0.9, M.oldWood, M.roofTile, { ry: -0.2, rz: 0.075 });
+    this._house(this.root, -1.18, 3.08, -0.28, 1.02, 1.42, 0.86, M.oldWood, M.roofTile, { ry: 0.24, rz: -0.11 });
+    this._tower(this.root, -1.42, 2.78, 0.12, 0.34, 2.35, M.plaster, M.roofTile, { ry: 0.16, rz: -0.08 });
+    this._tower(this.root, 1.38, 2.52, -0.42, 0.3, 1.86, M.rustIron, M.roofTile, { ry: -0.24, rz: 0.06 });
+    this._tower(this.root, 0.36, 3.72, -0.78, 0.26, 1.52, M.oldWood, M.roofTile, { ry: 0.08, rz: 0.04 });
+
+    const belly = this._part(this.root, new THREE.SphereGeometry(1.52, 20, 14), M.rustIron, 0.18, 0.58, -0.5);
+    belly.scale.set(1.28, 0.54, 0.9);
+    const apron = this._part(this.root, new THREE.BoxGeometry(3.9, 0.36, 1.9), M.oldWood, 0.02, 0.22, -0.18);
+    apron.rotation.z = -0.018;
+
     // Low planked skirts hide the spider-body read and make the legs feel like supports.
     const skirtFront = this._part(this.root, new THREE.BoxGeometry(3.55, 0.72, 0.16), M.oldWood, 0, 0.58, 1.02);
     skirtFront.rotation.z = -0.015;
@@ -391,6 +417,10 @@ export class Spider {
     // Railings on right side
     this._part(this.root, new THREE.BoxGeometry(0.5, 0.07, 1.0), M.darkIron, 1.4, 1.6, -0.4);
     for (const dz of [-0.35, 0, 0.35]) this._part(this.root, new THREE.BoxGeometry(0.04, 0.25, 0.04), M.darkIron, 1.4, 1.8, -0.4 + dz);
+    this._part(this.root, new THREE.BoxGeometry(1.12, 0.07, 0.72), M.darkIron, 0.82, 3.78, 0.18);
+    for (const x of [0.44, 0.82, 1.2]) this._part(this.root, new THREE.BoxGeometry(0.04, 0.32, 0.04), M.darkIron, x, 3.98, 0.5);
+    this._part(this.root, new THREE.BoxGeometry(0.84, 0.07, 0.62), M.oldWood, -1.34, 3.56, -0.62);
+    for (const x of [-1.62, -1.34, -1.06]) this._part(this.root, new THREE.BoxGeometry(0.04, 0.28, 0.04), M.darkIron, x, 3.74, -0.3);
 
     // ---- 4. CHIMNEYS (sitting ON the roofs) ----
     this._chimneys = [];
@@ -400,6 +430,9 @@ export class Spider {
       { x: -0.9, y: 3.55, z: 0.2, r: 0.16, h: 1.2 },
       { x: 0.85, y: 2.25, z: -0.1, r: 0.09, h: 0.6 },
       { x: -0.2, y: 3.35, z: -0.6, r: 0.10, h: 0.7 },
+      { x: -1.4, y: 4.0, z: 0.1, r: 0.11, h: 1.1 },
+      { x: 0.55, y: 4.54, z: -0.8, r: 0.08, h: 0.86 },
+      { x: 1.18, y: 3.75, z: -0.45, r: 0.09, h: 0.72 },
     ]) {
       const chimney = this._part(this.root, new THREE.CylinderGeometry(ch.r * 0.7, ch.r, ch.h, 6), M.rustIron, ch.x, ch.y, ch.z);
       // Smoke cap
@@ -442,15 +475,22 @@ export class Spider {
     // Wooden barrel
     this._part(this.root, new THREE.CylinderGeometry(0.18, 0.18, 0.35, 8), M.oldWood, 1.5, 1.1, -0.8);
     // Antenna
-    this._part(this.root, new THREE.CylinderGeometry(0.02, 0.02, 1.8, 4), M.darkIron, 0.3, 4.2, -0.5);
+    this._part(this.root, new THREE.CylinderGeometry(0.02, 0.02, 2.1, 4), M.darkIron, 0.3, 5.1, -0.5);
+    const vane = this._part(this.root, new THREE.BoxGeometry(0.55, 0.2, 0.035), M.brass, 0.48, 5.9, -0.5);
+    vane.rotation.z = 0.08;
 
     // ---- TRAILING: boiler / abdomen ----
     const py = this.PEDICEL.y, pz = this.PEDICEL.z;
-    this.body = this._part(this.abdomen, new THREE.BoxGeometry(2.2, 1.5, 2.0), M.rustIron, 0, 0.0 - py, -1.6 - pz);
+    this.body = this._part(this.abdomen, new THREE.SphereGeometry(0.92, 20, 14), M.rustIron, 0, -0.18 - py, -1.66 - pz);
+    this._bodyBaseScale = V3(1.08, 0.56, 0.78);
+    const rearHouse = this._part(this.abdomen, new THREE.BoxGeometry(1.76, 0.92, 0.42), M.plaster, 0, 0.34 - py, -0.58 - pz);
+    rearHouse.rotation.z = 0.012;
+    this._gable(this.abdomen, M.roofTile, 0, 0.82 - py, -0.58 - pz, 1.96, 0.36, 0.62, Math.PI, 0.012);
+    this._part(this.abdomen, new THREE.BoxGeometry(1.88, 0.08, 0.08), M.oldWood, 0, 0.68 - py, -0.82 - pz);
+    this._part(this.abdomen, new THREE.BoxGeometry(1.72, 0.08, 0.08), M.oldWood, 0, 0.02 - py, -0.82 - pz);
     // Furnace slit (glowing)
-    this._part(this.abdomen, new THREE.BoxGeometry(1.8, 0.15, 0.1), M.windowGlow, 0, -0.05 - py, -0.6 - pz);
+    this._part(this.abdomen, new THREE.BoxGeometry(1.05, 0.12, 0.1), M.windowGlow, 0, -0.12 - py, -0.82 - pz);
     for (const x of [-0.55, 0.55]) this._warmWindow(this.abdomen, x, 0.35 - py, -0.58 - pz, 0.28, 0.22);
-    this._part(this.abdomen, new THREE.BoxGeometry(1.9, 0.08, 0.08), M.oldWood, 0, 0.8 - py, -0.58 - pz);
     this._part(this.abdomen, new THREE.BoxGeometry(1.6, 0.08, 0.08), M.brass, 0, -0.72 - py, -0.58 - pz);
     // Rear chimney
     this._part(this.abdomen, new THREE.CylinderGeometry(0.12, 0.15, 0.7, 6), M.rustIron, 0.4, 0.8 - py, -2.2 - pz);
@@ -463,7 +503,7 @@ export class Spider {
     this._calciferLight.position.set(0, 0.8, 0);
     this.root.add(this._calciferLight);
 
-    this._enlargeCastleVisuals(1.25);
+    this._enlargeCastleVisuals(1.32);
   }
 
   /* ================================================================
@@ -561,7 +601,8 @@ export class Spider {
     this.root.position.copy(this.bodyOrigin); this.root.quaternion.copy(this.quat);
     const br = 1 + Math.sin(performance.now() * 0.002) * 0.006;
     const f = 1 + clamp01(this.fill || 0) * 0.3;
-    this.body.scale.set(1.0 * f, 0.9 * br * f, 1.0 * f);
+    const bs = this._bodyBaseScale || V3(1, 1, 1);
+    this.body.scale.set(bs.x * f, bs.y * br * f, bs.z * f);
     // Gears rotate
     this._sideGearAngle += this.curSpeed * 0.06;
     if (this._sideGears) for (const g of this._sideGears) g.rotation.y = Math.PI / 2 + this._sideGearAngle;

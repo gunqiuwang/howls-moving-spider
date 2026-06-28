@@ -10,6 +10,91 @@ const TOUCH = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window
 const errEl = document.getElementById('err');
 function fatal(msg) { errEl.style.display = 'flex'; errEl.textContent = msg; }
 
+class AmbientBgm {
+  constructor() {
+    this.ctx = null;
+    this.master = null;
+    this.timer = null;
+    this.step = 0;
+    this.playing = false;
+    this.notes = [220, 246.94, 293.66, 329.63, 392, 440, 493.88, 587.33];
+    this.pattern = [0, 2, 4, 6, 5, 3, 1, 4, 0, 3, 5, 7, 6, 4, 2, 5];
+  }
+
+  async start() {
+    try {
+      if (!this.ctx) {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.0001;
+        this.master.connect(this.ctx.destination);
+      }
+      await this.ctx.resume();
+      this.playing = true;
+      this.master.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.master.gain.setTargetAtTime(0.035, this.ctx.currentTime, 0.35);
+      if (!this.timer) {
+        this._tick();
+        this.timer = setInterval(() => this._tick(), 420);
+      }
+    } catch (err) {
+      console.warn('BGM unavailable:', err);
+    }
+  }
+
+  stop() {
+    if (!this.ctx || !this.master) return;
+    this.playing = false;
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+    this.master.gain.cancelScheduledValues(this.ctx.currentTime);
+    this.master.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.25);
+  }
+
+  toggle() {
+    if (this.playing) this.stop();
+    else this.start();
+  }
+
+  _tick() {
+    if (!this.ctx || !this.master || !this.playing) return;
+    const now = this.ctx.currentTime + 0.03;
+    const idx = this.pattern[this.step % this.pattern.length];
+    const octave = this.step % 8 === 6 ? 2 : 1;
+    this._pluck(this.notes[idx] * octave, now, 0.9, 0.09);
+    if (this.step % 2 === 0) this._pluck(this.notes[(idx + 3) % this.notes.length] * 0.5, now + 0.04, 1.2, 0.045);
+    if (this.step % 8 === 0) this._drone(this.notes[0] * 0.5, now, 3.6, 0.028);
+    this.step += 1;
+  }
+
+  _pluck(freq, time, dur, vol) {
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, time);
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1800, time);
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(vol, time + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+    osc.connect(filter); filter.connect(gain); gain.connect(this.master);
+    osc.start(time); osc.stop(time + dur + 0.05);
+  }
+
+  _drone(freq, time, dur, vol) {
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, time);
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(vol, time + 0.5);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+    osc.connect(gain); gain.connect(this.master);
+    osc.start(time); osc.stop(time + dur + 0.1);
+  }
+}
+
 let renderer, scene, camera, world, spider, spiderCam, input;
 try {
   const app = document.getElementById('app');
@@ -143,6 +228,17 @@ class Game {
 // ---------- 主循环 ----------
 if (spider) {
   document.getElementById('reset').addEventListener('click', () => { spider.reset(); if (window._game) { window._game.score = 0; window._game.respawnCoins(); } });
+  const bgm = new AmbientBgm();
+  const musicBtn = document.getElementById('music');
+  if (musicBtn) {
+    musicBtn.addEventListener('click', async () => {
+      if (bgm.playing) bgm.stop();
+      else await bgm.start();
+      musicBtn.classList.toggle('active', bgm.playing);
+      musicBtn.setAttribute('aria-pressed', bgm.playing ? 'true' : 'false');
+      musicBtn.textContent = bgm.playing ? 'BGM ON' : 'BGM';
+    });
+  }
   document.getElementById('hint').textContent = TOUCH
     ? '左侧拖拽 · 移动     右侧拖拽 · 视角     跳跃     加速     起飞'
     : 'WASD · 移动     拖拽 · 视角     空格 · 跳跃     Shift · 加速     F · 飞行     R · 重置';
