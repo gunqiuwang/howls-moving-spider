@@ -87,7 +87,7 @@ export class Input {
           if (this.onFlight) {
             const isFlying = this.onFlight();
             this.flyEl.classList.toggle('active', isFlying);
-            this.flyEl.textContent = isFlying ? 'LAND' : 'FLY';
+            this.flyEl.textContent = isFlying ? '降落' : '起飞';
           }
         });
       }

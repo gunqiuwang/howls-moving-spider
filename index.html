@@ -1,30 +1,32 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#1a0e06" />
-    <meta name="description" content="Howl's Moving Castle — a procedural walking castle with eight mechanical legs, golden hour atmosphere. Built with Three.js." />
-    <title>Howl's Moving Castle</title>
+    <meta name="description" content="哈尔风格八足移动城堡 — 操控机械城堡行走、飞行、收集金币" />
+    <title>哈尔风格八足移动城堡</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="./src/ui/styles.css" />
   </head>
   <body>
     <div id="app"></div>
     <div id="hud">
-      <div id="title">HOWL'S <span>·</span> MOVING CASTLE</div>
-      <div id="stats"><span id="fps">--</span> FPS<br />SPEED <b id="spd">0.0</b><br /><i id="grade">FLAT</i></div>
+      <div id="title">哈尔<span>·</span>移动城堡</div>
+      <div id="score-area">
+        <div id="coin-display">🪙 <span id="score">0</span></div>
+        <div id="coin-remaining"><span id="coins">0/0</span> 金币</div>
+        <div id="mission">目标：收集全部金币</div>
+      </div>
+      <div id="stats"><span id="fps">--</span> 帧率<br />速度 <b id="spd">0.0</b></div>
     </div>
-    <button id="reset">RESET</button>
+    <button id="reset">重置</button>
     <div id="hint"></div>
-    <div id="flight-indicator">✈ FLYING</div>
+    <div id="flight-indicator">✈ 飞行中</div>
     <div id="joy"></div><div id="knob"></div>
-    <div id="sprint">BOOST</div>
-    <div id="jump">JUMP</div>
-    <div id="flybtn">FLY</div>
-    <div id="panel">
-      <div id="panelHead"><span>TUNING</span><span id="panelTog">&ndash;</span></div>
-      <div id="panelBody"><div id="sliders"></div></div>
-    </div>
+    <div id="sprint">加速</div>
+    <div id="jump">跳跃</div>
+    <div id="flybtn">起飞</div>
     <div id="err"></div>
     <script type="module" src="./src/main.js"></script>
   </body>
