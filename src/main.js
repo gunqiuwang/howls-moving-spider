@@ -18,7 +18,7 @@ try {
   renderer.setSize(innerWidth, innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.95;
+  renderer.toneMappingExposure = 1.08;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   app.appendChild(renderer.domElement);
 
@@ -103,8 +103,15 @@ class Game {
   _updateHUD() {
     const scoreEl = document.getElementById('score');
     const coinsEl = document.getElementById('coins');
+    const missionEl = document.getElementById('mission');
+    const remaining = this.coins.filter(c => !c.collected).length;
     if (scoreEl) scoreEl.textContent = this.score;
-    if (coinsEl) { const remaining = this.coins.filter(c => !c.collected).length; coinsEl.textContent = remaining + '/' + this.coins.length; }
+    if (coinsEl) coinsEl.textContent = remaining + '/' + this.coins.length;
+    if (missionEl) {
+      if (remaining === 0) missionEl.textContent = '全部收集完成 · 按 R 重新开始';
+      else if (this.score === 0) missionEl.textContent = '目标：收集全部金币';
+      else missionEl.textContent = `还剩 ${remaining} 枚 · 继续探索`;
+    }
   }
 
   update(dt) {

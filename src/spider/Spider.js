@@ -27,6 +27,25 @@ function segPen(a, b, nearC, rad) {
   return pen;
 }
 
+function gableRoofGeometry(w, h, d) {
+  const hw = w * 0.5, hd = d * 0.5;
+  const verts = new Float32Array([
+    -hw, 0,  hd,   hw, 0,  hd,   0, h,  hd,
+    -hw, 0, -hd,   hw, 0, -hd,   0, h, -hd,
+  ]);
+  const idx = [
+    0, 1, 2,  5, 4, 3,
+    0, 3, 4,  0, 4, 1,
+    0, 2, 5,  0, 5, 3,
+    1, 4, 5,  1, 5, 2,
+  ];
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
 /* ---- verlet chains (steam pipes / flags) ---- */
 const _vt = V3();
 class Verlet {
@@ -120,7 +139,52 @@ export class Spider {
   }
 
   _part(parent, geo, mat, x, y, z) {
-    const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m;
+    const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; parent.add(m);
+    this._ink(m, mat);
+    return m;
+  }
+
+  _ink(mesh, mat) {
+    if ((mat.emissiveIntensity || 0) > 0.45 || mat.transparent) return;
+    const p = mesh.geometry.parameters || {};
+    const size = Math.max(p.width || 0, p.height || 0, p.depth || 0, p.radius || 0, p.radiusTop || 0, p.radiusBottom || 0);
+    if (size < 0.16) return;
+    const M = getMaterials();
+    const line = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 24), M.inkLine);
+    line.renderOrder = 1;
+    mesh.add(line);
+  }
+
+  _gable(parent, mat, x, y, z, w, h, d, ry = 0, rz = 0) {
+    const m = new THREE.Mesh(gableRoofGeometry(w, h, d), mat);
+    m.position.set(x, y, z); m.rotation.set(0, ry, rz); m.castShadow = true; parent.add(m);
+    this._ink(m, mat);
+    return m;
+  }
+
+  _house(parent, x, y, z, w, h, d, mat, roofMat, opts = {}) {
+    const M = getMaterials();
+    const body = this._part(parent, new THREE.BoxGeometry(w, h, d), mat, x, y, z);
+    body.rotation.set(opts.rx || 0, opts.ry || 0, opts.rz || 0);
+    const roof = this._gable(parent, roofMat, x, y + h * 0.5, z, w * 1.16, h * 0.34, d * 1.12, opts.ry || 0, opts.rz || 0);
+    const frontZ = z + Math.cos(opts.ry || 0) * d * 0.52;
+    this._warmWindow(parent, x - w * 0.23, y + h * 0.08, frontZ, Math.min(0.26, w * 0.22), Math.min(0.22, h * 0.18));
+    if (w > 0.9) this._warmWindow(parent, x + w * 0.22, y + h * 0.05, frontZ, Math.min(0.24, w * 0.2), Math.min(0.2, h * 0.16));
+    this._part(parent, new THREE.BoxGeometry(w * 0.92, 0.07, 0.08), M.oldWood, x, y + h * 0.42, frontZ + 0.02);
+    return { body, roof };
+  }
+
+  _enlargeCastleVisuals(scale = 1.25) {
+    for (const child of this.root.children) {
+      child.position.multiplyScalar(scale);
+      child.scale.multiplyScalar(scale);
+    }
+  }
+
+  _warmWindow(parent, x, y, z, w, h) {
+    const M = getMaterials();
+    this._part(parent, new THREE.BoxGeometry(w + 0.08, h + 0.08, 0.035), M.oldWood, x, y, z - 0.012);
+    return this._part(parent, new THREE.BoxGeometry(w, h, 0.06), M.windowGlow, x, y, z);
   }
 
   /* ================================================================
@@ -137,53 +201,47 @@ export class Spider {
     //  HOWL'S MOVING CASTLE — rounded fish-head front face
     // ================================================================
 
-    // ---- 1. FRONT FACE: main head shell (rounded fish-head) ----
+    // ---- 1. Boiler core: kept low so the silhouette reads as houses first ----
     const headShell = new THREE.Mesh(new THREE.SphereGeometry(1.8, 24, 18), M.rustIron);
-    headShell.scale.set(1.3, 1.1, 1.0);
-    headShell.position.set(0, 1.2, 0.6);
+    headShell.scale.set(1.02, 0.72, 0.82);
+    headShell.position.set(0, 0.78, 0.42);
     headShell.castShadow = true;
     this.root.add(headShell);
 
-    // Jaw (smaller sphere below head)
+    // Lower boiler lip, not a monster jaw.
     const jaw = new THREE.Mesh(new THREE.SphereGeometry(1.2, 18, 12), M.rustIron);
-    jaw.scale.set(1.2, 0.6, 0.9);
-    jaw.position.set(0, 0.1, 0.8);
+    jaw.scale.set(0.92, 0.32, 0.62);
+    jaw.position.set(0, 0.12, 0.7);
     jaw.castShadow = true;
     this.root.add(jaw);
 
-    // ---- EYES: large TorusGeometry rims with dark glass ----
-    const eyeY = 1.8, eyeZ = 1.5, eyeSpacing = 0.7;
+    // ---- EYES: large TorusGeometry rims with warm glass ----
+    const eyeY = 1.48, eyeZ = 1.18, eyeSpacing = 0.58;
     for (const side of [-1, 1]) {
       const ex = side * eyeSpacing;
       // Large iron rim (protruding)
       const rim = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.10, 8, 20), M.darkIron);
       rim.position.set(ex, eyeY, eyeZ); rim.castShadow = true; this.root.add(rim);
-      // Dark glass disc
       const glass = new THREE.Mesh(new THREE.CircleGeometry(0.38, 18), M.darkGlass);
       glass.position.set(ex, eyeY, eyeZ + 0.02); this.root.add(glass);
+      const glint = new THREE.Mesh(new THREE.CircleGeometry(0.14, 12), M.windowGlow);
+      glint.position.set(ex - side * 0.08, eyeY + 0.04, eyeZ + 0.035); this.root.add(glint);
       // Mechanical bolts around eye
       this._part(this.root, new THREE.BoxGeometry(0.08, 0.55, 0.08), M.darkIron, ex + side * 0.46, eyeY, eyeZ);
       this._part(this.root, new THREE.BoxGeometry(0.55, 0.08, 0.08), M.darkIron, ex, eyeY + 0.46, eyeZ);
     }
 
-    // ---- MOUTH: wide interior + teeth ----
-    const mouthY = 0.5, mouthZ = 1.4;
-    this._part(this.root, new THREE.BoxGeometry(1.8, 0.7, 0.3), M.darkInterior, 0, mouthY, mouthZ);
-    // Upper teeth (9)
-    for (let i = 0; i < 9; i++) {
-      const tx = -0.72 + i * 0.18;
-      const th = 0.10 + (i % 3) * 0.06;
-      this._part(this.root, new THREE.BoxGeometry(0.12, th, 0.14), M.steel, tx, mouthY + 0.38, mouthZ + 0.05);
-    }
-    // Lower teeth (8)
-    for (let i = 0; i < 8; i++) {
-      const tx = -0.60 + i * 0.18;
-      const th = 0.08 + ((i + 1) % 3) * 0.05;
-      this._part(this.root, new THREE.BoxGeometry(0.11, th, 0.12), M.steel, tx, mouthY - 0.38, mouthZ + 0.05);
+    // ---- MOUTH: warm furnace slit, friendlier than a monster mouth ----
+    const mouthY = 0.38, mouthZ = 1.14;
+    this._part(this.root, new THREE.BoxGeometry(1.28, 0.24, 0.22), M.darkInterior, 0, mouthY, mouthZ);
+    this._part(this.root, new THREE.BoxGeometry(1.35, 0.08, 0.08), M.windowGlow, 0, mouthY - 0.02, mouthZ + 0.08);
+    for (let i = 0; i < 5; i++) {
+      const tx = -0.48 + i * 0.24;
+      this._part(this.root, new THREE.BoxGeometry(0.08, 0.16, 0.08), M.steel, tx, mouthY + 0.2, mouthZ + 0.06);
     }
 
     // ---- NOSE: ConeGeometry ----
-    const nose = this._part(this.root, new THREE.ConeGeometry(0.12, 0.45, 6), M.darkIron, 0, eyeY - 0.3, eyeZ + 0.35);
+    const nose = this._part(this.root, new THREE.ConeGeometry(0.1, 0.34, 6), M.darkIron, 0, eyeY - 0.28, eyeZ + 0.28);
     nose.rotation.x = Math.PI; // point forward
 
     // ---- EXHAUST PIPES flanking the nose ----
@@ -191,7 +249,7 @@ export class Spider {
       this._part(this.root, new THREE.CylinderGeometry(0.06, 0.08, 0.4, 6), M.darkIron, side * 0.28, eyeY - 0.5, eyeZ + 0.5);
     }
 
-    // ---- 2. SIDE DETAILS: pipes, cannons, gears ----
+    // ---- 2. SIDE DETAILS: pipes, lanterns, gears ----
     this._sideGears = [];
     for (const side of [-1, 1]) {
       // Vertical pipe
@@ -203,9 +261,9 @@ export class Spider {
       // Diagonal pipe
       const p3 = this._part(this.root, new THREE.CylinderGeometry(0.05, 0.05, 1.2, 6), M.darkIron, side * 1.3, 1.5, -0.5);
       p3.rotation.set(0.2, 0, side * 0.4);
-      // Small cannon
-      const cannon = this._part(this.root, new THREE.CylinderGeometry(0.09, 0.11, 0.5, 6), M.darkIron, side * 1.7, 1.5, 0.6);
-      cannon.rotation.x = -0.15;
+      // Small side lantern instead of a weapon silhouette
+      this._part(this.root, new THREE.CylinderGeometry(0.09, 0.11, 0.22, 8), M.brass, side * 1.72, 1.48, 0.62);
+      this._part(this.root, new THREE.SphereGeometry(0.12, 8, 6), M.windowGlow, side * 1.72, 1.35, 0.68);
 
       // ---- Side gears (TorusGeometry with spokes) ----
       const gearGroup = new THREE.Group();
@@ -255,6 +313,78 @@ export class Spider {
     b5.rotation.set(0.01, -0.02, 0.02);
     this._part(this.root, new THREE.ConeGeometry(0.6, 0.5, 4), M.roofTile, 0.4, 3.25, -0.9);
 
+    // Smaller crooked cabins make the silhouette read as a pile of lived-in houses.
+    const b6 = this._part(this.root, new THREE.BoxGeometry(0.8, 0.65, 0.75), M.plaster, -1.15, 2.15, -0.55);
+    b6.rotation.set(0.02, 0.18, -0.07);
+    const b6roof = this._part(this.root, new THREE.ConeGeometry(0.62, 0.48, 4), M.roofTile, -1.15, 2.72, -0.55);
+    b6roof.rotation.y = Math.PI / 4 + 0.18;
+    const b7 = this._part(this.root, new THREE.BoxGeometry(0.74, 0.58, 0.64), M.oldWood, 1.08, 2.28, -0.72);
+    b7.rotation.set(-0.02, -0.16, 0.06);
+    const b7roof = this._part(this.root, new THREE.ConeGeometry(0.55, 0.42, 4), M.roofTile, 1.08, 2.78, -0.72);
+    b7roof.rotation.y = Math.PI / 4 - 0.16;
+
+    // ---- 3b. CASTLE SILHOUETTE: a crooked stack of real house shapes ----
+    this._house(this.root, 0.0, 1.68, 0.28, 2.65, 1.85, 1.18, M.plaster, M.roofTile, { ry: 0.02, rz: -0.015 });
+    this._house(this.root, -1.02, 2.14, 0.02, 1.18, 2.15, 0.98, M.oldWood, M.roofTile, { ry: 0.12, rz: -0.08 });
+    this._house(this.root, 1.04, 1.95, -0.12, 1.28, 1.58, 1.05, M.plaster, M.roofTile, { ry: -0.14, rz: 0.06 });
+    this._house(this.root, 0.18, 3.04, -0.36, 1.48, 1.0, 1.08, M.oldWood, M.roofTile, { ry: -0.04, rz: 0.03 });
+    this._house(this.root, -1.68, 1.58, -0.48, 0.92, 1.02, 0.82, M.plaster, M.roofTile, { ry: 0.32, rz: -0.04 });
+    this._house(this.root, 1.68, 1.46, -0.62, 0.92, 0.94, 0.78, M.oldWood, M.roofTile, { ry: -0.28, rz: 0.04 });
+
+    // Low planked skirts hide the spider-body read and make the legs feel like supports.
+    const skirtFront = this._part(this.root, new THREE.BoxGeometry(3.55, 0.72, 0.16), M.oldWood, 0, 0.58, 1.02);
+    skirtFront.rotation.z = -0.015;
+    const skirtRear = this._part(this.root, new THREE.BoxGeometry(3.25, 0.62, 0.16), M.oldWood, 0.04, 0.52, -1.16);
+    skirtRear.rotation.z = 0.02;
+    for (const x of [-1.1, 0, 1.1]) {
+      this._part(this.root, new THREE.BoxGeometry(0.08, 0.72, 0.1), M.brass, x, 0.58, 1.12);
+      this._part(this.root, new THREE.BoxGeometry(0.08, 0.62, 0.1), M.brass, x, 0.52, -1.26);
+    }
+
+    // Lower front facade: turns the visible boiler slab into a little inhabited cabin.
+    const lowerCabin = this._part(this.root, new THREE.BoxGeometry(1.85, 1.18, 0.34), M.plaster, 0, 0.86, 1.22);
+    lowerCabin.rotation.z = -0.01;
+    this._gable(this.root, M.roofTile, 0, 1.45, 1.22, 2.06, 0.42, 0.58, 0.02, -0.01);
+    this._warmWindow(this.root, -0.48, 0.98, 1.42, 0.24, 0.22);
+    this._warmWindow(this.root, 0.48, 0.98, 1.42, 0.24, 0.22);
+    this._part(this.root, new THREE.BoxGeometry(0.34, 0.56, 0.08), M.darkInterior, 0, 0.55, 1.44);
+    this._part(this.root, new THREE.BoxGeometry(1.72, 0.08, 0.08), M.oldWood, 0, 1.2, 1.45);
+    this._part(this.root, new THREE.BoxGeometry(1.72, 0.08, 0.08), M.oldWood, 0, 0.26, 1.45);
+    for (const x of [-0.86, 0.86]) this._part(this.root, new THREE.BoxGeometry(0.08, 1.05, 0.08), M.oldWood, x, 0.78, 1.45);
+
+    // Rear facade is the default camera view, so it carries the strongest house read.
+    const rearCabin = this._part(this.root, new THREE.BoxGeometry(2.05, 1.26, 0.36), M.plaster, 0, 0.9, -1.42);
+    rearCabin.rotation.z = 0.012;
+    this._gable(this.root, M.roofTile, 0, 1.53, -1.42, 2.28, 0.5, 0.62, Math.PI, 0.012);
+    this._warmWindow(this.root, -0.58, 1.05, -1.64, 0.28, 0.24);
+    this._warmWindow(this.root, 0.58, 1.05, -1.64, 0.28, 0.24);
+    this._part(this.root, new THREE.BoxGeometry(0.4, 0.62, 0.08), M.darkInterior, 0, 0.58, -1.66);
+    this._part(this.root, new THREE.BoxGeometry(1.92, 0.09, 0.08), M.oldWood, 0, 1.28, -1.67);
+    this._part(this.root, new THREE.BoxGeometry(1.92, 0.09, 0.08), M.oldWood, 0, 0.28, -1.67);
+    for (const x of [-0.96, 0.96]) this._part(this.root, new THREE.BoxGeometry(0.08, 1.12, 0.08), M.oldWood, x, 0.82, -1.67);
+    this._part(this.root, new THREE.BoxGeometry(2.25, 0.08, 0.52), M.darkIron, 0, 0.16, -1.34);
+    for (const x of [-0.72, 0, 0.72]) this._part(this.root, new THREE.BoxGeometry(0.05, 0.32, 0.05), M.brass, x, 0.34, -1.68);
+
+    for (const side of [-1, 1]) {
+      const sideSkirt = this._part(this.root, new THREE.BoxGeometry(0.18, 0.7, 2.35), M.oldWood, side * 1.72, 0.55, -0.12);
+      sideSkirt.rotation.z = side * 0.04;
+      this._part(this.root, new THREE.BoxGeometry(0.1, 0.7, 0.08), M.brass, side * 1.83, 0.55, 0.62);
+      this._part(this.root, new THREE.BoxGeometry(0.1, 0.7, 0.08), M.brass, side * 1.83, 0.55, -0.78);
+    }
+
+    for (const [cx, cy, cz, r, h] of [
+      [-0.42, 3.95, 0.18, 0.13, 0.9], [0.34, 3.72, -0.5, 0.11, 0.75],
+      [-1.12, 3.58, 0.12, 0.1, 0.82], [1.12, 3.04, -0.08, 0.09, 0.62],
+    ]) {
+      this._part(this.root, new THREE.CylinderGeometry(r * 0.7, r, h, 6), M.rustIron, cx, cy, cz);
+      this._part(this.root, new THREE.CylinderGeometry(r * 1.2, r * 0.75, 0.1, 6), M.darkIron, cx, cy + h * 0.5 + 0.04, cz);
+    }
+
+    for (const [x, y, z, w] of [
+      [0, 2.38, -0.4, 2.3], [-0.9, 3.08, 0.2, 1.1], [0.8, 1.98, -0.1, 1.25],
+      [-0.2, 3.08, -0.6, 1.45], [0.4, 3.32, -0.9, 0.95],
+    ]) this._part(this.root, new THREE.BoxGeometry(w, 0.08, 0.08), M.oldWood, x, y, z + 0.46);
+
     // Balconies
     this._part(this.root, new THREE.BoxGeometry(0.6, 0.08, 1.4), M.darkIron, -1.5, 1.6, 0.0);
     for (const dz of [-0.5, 0, 0.5]) this._part(this.root, new THREE.BoxGeometry(0.04, 0.3, 0.04), M.darkIron, -1.5, 1.85, dz);
@@ -282,8 +412,9 @@ export class Spider {
       [0.6, 0.8, 0.7, 0.28, 0.22], [-0.5, 0.8, 0.7, 0.28, 0.22],
       [1.3, 1.0, 0.4, 0.2, 0.24], [-1.3, 1.0, 0.4, 0.2, 0.24],
       [0.3, 2.2, 0.5, 0.22, 0.2], [-0.3, 2.2, 0.5, 0.22, 0.2],
-      [0.7, 1.6, -0.6, 0.18, 0.2],
-    ]) { this._part(this.root, new THREE.BoxGeometry(w, h, 0.06), M.windowGlow, x, y, z); }
+      [0.7, 1.6, -0.6, 0.18, 0.2], [-1.15, 2.18, -0.16, 0.16, 0.16],
+      [1.08, 2.28, -0.34, 0.16, 0.14], [0.36, 2.62, -0.52, 0.14, 0.13],
+    ]) { this._warmWindow(this.root, x, y, z, w, h); }
 
     // ---- 6. DETAILS ----
     // Wooden beams
@@ -300,6 +431,14 @@ export class Spider {
     this._part(this.root, new THREE.BoxGeometry(0.7, 0.5, 0.08), M.rustIron, 1.4, 2.0, 0.9);
     this._part(this.root, new THREE.BoxGeometry(0.5, 0.4, 0.08), M.rustIron, -1.2, 2.5, 0.7);
     this._part(this.root, new THREE.BoxGeometry(0.6, 0.3, 0.08), M.rustIron, 0.0, 3.0, 0.8);
+    for (const [px, py, pz, sx, sy] of [
+      [1.45, 2.02, 0.95, 0.78, 0.58], [-1.22, 2.52, 0.75, 0.58, 0.48], [0.0, 3.02, 0.85, 0.68, 0.38],
+    ]) {
+      this._part(this.root, new THREE.BoxGeometry(sx, 0.035, 0.035), M.brass, px, py + sy * 0.5, pz + 0.05);
+      this._part(this.root, new THREE.BoxGeometry(sx, 0.035, 0.035), M.brass, px, py - sy * 0.5, pz + 0.05);
+      this._part(this.root, new THREE.BoxGeometry(0.035, sy, 0.035), M.brass, px - sx * 0.5, py, pz + 0.05);
+      this._part(this.root, new THREE.BoxGeometry(0.035, sy, 0.035), M.brass, px + sx * 0.5, py, pz + 0.05);
+    }
     // Wooden barrel
     this._part(this.root, new THREE.CylinderGeometry(0.18, 0.18, 0.35, 8), M.oldWood, 1.5, 1.1, -0.8);
     // Antenna
@@ -310,6 +449,9 @@ export class Spider {
     this.body = this._part(this.abdomen, new THREE.BoxGeometry(2.2, 1.5, 2.0), M.rustIron, 0, 0.0 - py, -1.6 - pz);
     // Furnace slit (glowing)
     this._part(this.abdomen, new THREE.BoxGeometry(1.8, 0.15, 0.1), M.windowGlow, 0, -0.05 - py, -0.6 - pz);
+    for (const x of [-0.55, 0.55]) this._warmWindow(this.abdomen, x, 0.35 - py, -0.58 - pz, 0.28, 0.22);
+    this._part(this.abdomen, new THREE.BoxGeometry(1.9, 0.08, 0.08), M.oldWood, 0, 0.8 - py, -0.58 - pz);
+    this._part(this.abdomen, new THREE.BoxGeometry(1.6, 0.08, 0.08), M.brass, 0, -0.72 - py, -0.58 - pz);
     // Rear chimney
     this._part(this.abdomen, new THREE.CylinderGeometry(0.12, 0.15, 0.7, 6), M.rustIron, 0.4, 0.8 - py, -2.2 - pz);
     // Connecting pipes
@@ -320,6 +462,8 @@ export class Spider {
     this._calciferLight = new THREE.PointLight(0xE85030, 2, 8);
     this._calciferLight.position.set(0, 0.8, 0);
     this.root.add(this._calciferLight);
+
+    this._enlargeCastleVisuals(1.25);
   }
 
   /* ================================================================
@@ -350,25 +494,51 @@ export class Spider {
 
       // Build leg geometry groups
       const sc = s.scale;
-      const armR = this.legRad * 1.6 * sc; // armor radius
+      const armR = this.legRad * 1.15 * sc; // armor radius
 
-      // Femur group (upper leg with armor sleeve)
+      // Femur group: slimmer old-machine struts instead of thick spider limbs.
       const femGroup = new THREE.Group();
-      femGroup.add(new THREE.Mesh(GEO.cyl, M.legArmor)); // armor cylinder
-      femGroup.add(new THREE.Mesh(GEO.joint, M.darkIron)); // hip joint sphere
-      femGroup.children[0].scale.set(armR, 1, armR);
-      femGroup.children[1].scale.setScalar(armR * 1.2);
+      femGroup.add(new THREE.Mesh(GEO.cyl, M.legArmor));
+      femGroup.add(new THREE.Mesh(GEO.joint, M.brass));
+      femGroup.add(new THREE.Mesh(GEO.cyl, M.darkIron));
+      femGroup.add(new THREE.Mesh(GEO.cyl, M.darkIron));
+      femGroup.children[0].scale.set(armR * 0.72, 1, armR * 0.72);
+      femGroup.children[1].scale.setScalar(armR * 0.98);
+      femGroup.children[2].scale.set(armR * 0.28, 1, armR * 0.28);
+      femGroup.children[3].scale.set(armR * 0.28, 1, armR * 0.28);
       this.scene.add(femGroup);
 
-      // Tibia group (lower leg with armor)
+      // Tibia group with paired hydraulic rods.
       const tibGroup = new THREE.Group();
       tibGroup.add(new THREE.Mesh(GEO.cyl, M.legArmor));
-      tibGroup.add(new THREE.Mesh(GEO.joint, M.darkIron)); // knee joint
-      tibGroup.children[0].scale.set(armR * 0.85, 1, armR * 0.85);
-      tibGroup.children[1].scale.setScalar(armR * 1.1);
+      tibGroup.add(new THREE.Mesh(GEO.joint, M.brass));
+      tibGroup.add(new THREE.Mesh(GEO.cyl, M.darkIron));
+      tibGroup.add(new THREE.Mesh(GEO.cyl, M.darkIron));
+      tibGroup.children[0].scale.set(armR * 0.62, 1, armR * 0.62);
+      tibGroup.children[1].scale.setScalar(armR * 0.9);
+      tibGroup.children[2].scale.set(armR * 0.24, 1, armR * 0.24);
+      tibGroup.children[3].scale.set(armR * 0.24, 1, armR * 0.24);
       this.scene.add(tibGroup);
 
+      const footGroup = new THREE.Group();
+      const pad = new THREE.Mesh(new THREE.BoxGeometry(0.62 * sc, 0.16 * sc, 0.4 * sc), M.oldWood);
+      const toe = new THREE.Mesh(new THREE.BoxGeometry(0.34 * sc, 0.1 * sc, 0.16 * sc), M.brass);
+      toe.position.z = 0.26 * sc;
+      footGroup.add(pad); footGroup.add(toe);
+      this.scene.add(footGroup);
+
+      const footLink = new THREE.Group();
+      footLink.add(new THREE.Mesh(GEO.cyl, M.darkIron));
+      footLink.add(new THREE.Mesh(GEO.joint, M.brass));
+      footLink.add(new THREE.Mesh(GEO.joint, M.brass));
+      footLink.children[0].scale.set(armR * 0.28, 1, armR * 0.28);
+      footLink.children[1].scale.setScalar(armR * 0.62);
+      footLink.children[2].scale.setScalar(armR * 0.52);
+      this.scene.add(footLink);
+
       L.femGroup = femGroup; L.tibGroup = tibGroup;
+      L.footGroup = footGroup;
+      L.footLink = footLink;
       L.armR = armR;
 
       L.restAxisL = home.clone().sub(L.hip).normalize();
@@ -545,8 +715,8 @@ export class Spider {
     // Landing dust
     this._dustLand.emit(P.clone(), V3(0, 1, 0), 3, 8);
   }
-  severLeg(i) { const L = this.legs[i]; if (!L || L.lost) return false; L.lost = true; this.legsLost++; L.femGroup.visible = L.tibGroup.visible = false; return true; }
-  regrowLeg(i) { const L = this.legs[i]; if (!L || !L.lost) return false; L.lost = false; this.legsLost--; L.femGroup.visible = L.tibGroup.visible = true; return true; }
+  severLeg(i) { const L = this.legs[i]; if (!L || L.lost) return false; L.lost = true; this.legsLost++; L.femGroup.visible = L.tibGroup.visible = L.footGroup.visible = L.footLink.visible = false; return true; }
+  regrowLeg(i) { const L = this.legs[i]; if (!L || !L.lost) return false; L.lost = false; this.legsLost--; L.femGroup.visible = L.tibGroup.visible = L.footGroup.visible = L.footLink.visible = true; return true; }
   updateAirborne(dt, inp) {
     if (dt <= 0) { this.bodyOrigin.copy(this.pos); this.rebuild(); this.setRoot(); return; }
     const G = 26; this.vel.y -= G * dt;
@@ -663,11 +833,35 @@ export class Spider {
     orientCyl(L.femGroup.children[0], hipW, knee, armR);
     L.femGroup.children[0].position.copy(hipW).add(knee).multiplyScalar(0.5);
     L.femGroup.children[1].position.copy(hipW);
-    L.femGroup.children[1].scale.setScalar(armR * 1.2);
+    L.femGroup.children[1].scale.setScalar(armR * 0.98);
+    const femSide = knee.clone().sub(hipW).cross(this.up);
+    if (femSide.lengthSq() < 1e-5) femSide.copy(this.right);
+    femSide.normalize().multiplyScalar(armR * 0.9);
+    for (const [idx, sign] of [[2, 1], [3, -1]]) {
+      const a = hipW.clone().addScaledVector(femSide, sign);
+      const b = knee.clone().addScaledVector(femSide, sign);
+      orientCyl(L.femGroup.children[idx], a, b, armR * 0.28);
+      L.femGroup.children[idx].position.copy(a).add(b).multiplyScalar(0.5);
+    }
     orientCyl(L.tibGroup.children[0], knee, ankle, armR * 0.85);
     L.tibGroup.children[0].position.copy(knee).add(ankle).multiplyScalar(0.5);
     L.tibGroup.children[1].position.copy(knee);
-    L.tibGroup.children[1].scale.setScalar(armR * 1.1);
+    L.tibGroup.children[1].scale.setScalar(armR * 0.9);
+    const tibSide = ankle.clone().sub(knee).cross(this.up);
+    if (tibSide.lengthSq() < 1e-5) tibSide.copy(this.right);
+    tibSide.normalize().multiplyScalar(armR * 0.72);
+    for (const [idx, sign] of [[2, 1], [3, -1]]) {
+      const a = knee.clone().addScaledVector(tibSide, sign);
+      const b = ankle.clone().addScaledVector(tibSide, sign);
+      orientCyl(L.tibGroup.children[idx], a, b, armR * 0.24);
+      L.tibGroup.children[idx].position.copy(a).add(b).multiplyScalar(0.5);
+    }
+    L.footGroup.position.copy(foot).addScaledVector(this.up, 0.08);
+    L.footGroup.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(this.right, this.up, this.fwd));
+    orientCyl(L.footLink.children[0], ankle, foot, armR * 0.28);
+    L.footLink.children[0].position.copy(ankle).add(foot).multiplyScalar(0.5);
+    L.footLink.children[1].position.copy(ankle);
+    L.footLink.children[2].position.copy(foot).addScaledVector(this.up, 0.12);
   }
 
 

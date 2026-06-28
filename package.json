@@ -1,7 +1,7 @@
 {
-  "name": "howls-moving-castle",
-  "version": "1.0.0",
-  "description": "Howl's Moving Castle — procedural walking castle with IK legs, Three.js",
+  "name": "howls-moving-spider",
+  "version": "0.3.0",
+  "description": "Howl-inspired eight-legged procedural walking castle game with IK legs and Three.js",
   "type": "module",
   "license": "MIT",
   "scripts": {
