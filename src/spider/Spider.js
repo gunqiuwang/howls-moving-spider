@@ -352,10 +352,12 @@ export class Spider {
     this._tower(this.root, 1.38, 2.52, -0.42, 0.3, 1.86, M.rustIron, M.roofTile, { ry: -0.24, rz: 0.06 });
     this._tower(this.root, 0.36, 3.72, -0.78, 0.26, 1.52, M.oldWood, M.roofTile, { ry: 0.08, rz: 0.04 });
 
-    const belly = this._part(this.root, new THREE.SphereGeometry(1.52, 20, 14), M.rustIron, 0.18, 0.58, -0.5);
-    belly.scale.set(1.28, 0.54, 0.9);
-    const apron = this._part(this.root, new THREE.BoxGeometry(3.9, 0.36, 1.9), M.oldWood, 0.02, 0.22, -0.18);
+    const apron = this._part(this.root, new THREE.BoxGeometry(4.15, 0.5, 2.15), M.oldWood, 0.02, 0.28, -0.18);
     apron.rotation.z = -0.018;
+    const lowBoiler = this._part(this.root, new THREE.SphereGeometry(0.8, 18, 12), M.rustIron, 0.18, 0.28, -0.48);
+    lowBoiler.scale.set(1.38, 0.38, 0.78);
+    const boilerMask = this._part(this.root, new THREE.BoxGeometry(2.45, 0.72, 0.28), M.oldWood, 0.06, 0.62, -1.08);
+    boilerMask.rotation.z = 0.01;
 
     // Low planked skirts hide the spider-body read and make the legs feel like supports.
     const skirtFront = this._part(this.root, new THREE.BoxGeometry(3.55, 0.72, 0.16), M.oldWood, 0, 0.58, 1.02);
@@ -379,9 +381,9 @@ export class Spider {
     for (const x of [-0.86, 0.86]) this._part(this.root, new THREE.BoxGeometry(0.08, 1.05, 0.08), M.oldWood, x, 0.78, 1.45);
 
     // Rear facade is the default camera view, so it carries the strongest house read.
-    const rearCabin = this._part(this.root, new THREE.BoxGeometry(2.05, 1.26, 0.36), M.plaster, 0, 0.9, -1.42);
+    const rearCabin = this._part(this.root, new THREE.BoxGeometry(2.45, 1.42, 0.48), M.plaster, 0, 0.98, -1.42);
     rearCabin.rotation.z = 0.012;
-    this._gable(this.root, M.roofTile, 0, 1.53, -1.42, 2.28, 0.5, 0.62, Math.PI, 0.012);
+    this._gable(this.root, M.roofTile, 0, 1.7, -1.42, 2.72, 0.56, 0.72, Math.PI, 0.012);
     this._warmWindow(this.root, -0.58, 1.05, -1.64, 0.28, 0.24);
     this._warmWindow(this.root, 0.58, 1.05, -1.64, 0.28, 0.24);
     this._part(this.root, new THREE.BoxGeometry(0.4, 0.62, 0.08), M.darkInterior, 0, 0.58, -1.66);
@@ -390,6 +392,13 @@ export class Spider {
     for (const x of [-0.96, 0.96]) this._part(this.root, new THREE.BoxGeometry(0.08, 1.12, 0.08), M.oldWood, x, 0.82, -1.67);
     this._part(this.root, new THREE.BoxGeometry(2.25, 0.08, 0.52), M.darkIron, 0, 0.16, -1.34);
     for (const x of [-0.72, 0, 0.72]) this._part(this.root, new THREE.BoxGeometry(0.05, 0.32, 0.05), M.brass, x, 0.34, -1.68);
+
+    const sideBlockL = this._part(this.root, new THREE.BoxGeometry(0.72, 1.18, 1.1), M.plaster, -1.86, 0.98, -0.34);
+    sideBlockL.rotation.set(0.02, 0.28, -0.045);
+    this._gable(this.root, M.roofTile, -1.86, 1.58, -0.34, 0.92, 0.34, 1.22, 0.28, -0.045);
+    const sideBlockR = this._part(this.root, new THREE.BoxGeometry(0.72, 1.06, 1.0), M.oldWood, 1.86, 0.9, -0.28);
+    sideBlockR.rotation.set(-0.015, -0.24, 0.04);
+    this._gable(this.root, M.roofTile, 1.86, 1.46, -0.28, 0.9, 0.32, 1.12, -0.24, 0.04);
 
     for (const side of [-1, 1]) {
       const sideSkirt = this._part(this.root, new THREE.BoxGeometry(0.18, 0.7, 2.35), M.oldWood, side * 1.72, 0.55, -0.12);
@@ -481,8 +490,8 @@ export class Spider {
 
     // ---- TRAILING: boiler / abdomen ----
     const py = this.PEDICEL.y, pz = this.PEDICEL.z;
-    this.body = this._part(this.abdomen, new THREE.SphereGeometry(0.92, 20, 14), M.rustIron, 0, -0.18 - py, -1.66 - pz);
-    this._bodyBaseScale = V3(1.08, 0.56, 0.78);
+    this.body = this._part(this.abdomen, new THREE.SphereGeometry(0.62, 18, 12), M.rustIron, 0, -0.32 - py, -1.68 - pz);
+    this._bodyBaseScale = V3(0.86, 0.38, 0.58);
     const rearHouse = this._part(this.abdomen, new THREE.BoxGeometry(1.76, 0.92, 0.42), M.plaster, 0, 0.34 - py, -0.58 - pz);
     rearHouse.rotation.z = 0.012;
     this._gable(this.abdomen, M.roofTile, 0, 0.82 - py, -0.58 - pz, 1.96, 0.36, 0.62, Math.PI, 0.012);
